@@ -853,6 +853,7 @@ int pr_icmph(__u8 type, __u8 code, __u32 info)
 		printf("unknown icmp type");
 		
 	}
+	printf("\n");
 	return 0;
 }
 

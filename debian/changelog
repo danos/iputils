@@ -1,3 +1,10 @@
+iputils (3:20020124-2) unstable; urgency=low
+
+  * Added newlines to network error indicators in ping6 
+    (Closes: Bug#140254, Bug#119651)
+
+ -- Noah Meyerhans <noahm@debian.org>  Wed, 17 Apr 2002 00:32:03 -0400
+
 iputils (3:20020124-1) unstable; urgency=low
 
   * New upstream release. (Closes: Bug#119651, Bug#120166)
