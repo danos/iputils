@@ -1,7 +1,7 @@
 Source: iputils
 Section: net
 Priority: extra
-Maintainer: Noah Meyerhans <frodo@morgul.net>
+Maintainer: Noah Meyerhans <noahm@debian.org>
 Standards-Version: 3.1.1
 Build-Depends: debhelper (>> 2)
 
@@ -16,10 +16,8 @@ Description: The ping utility from iputils
  test if the host is reachable via the network.
  .
  This package includes a ping6 utility which supports IPv6 network
- connections.
- .
- If you don't know why you might need this package, you probably don't
- need it. Use netkit-ping instead.
+ connections.  Aside from that, it is essentially functionally identical
+ to the netkit-ping package.
  
 Package: iputils-tracepath
 Architecture: any
@@ -33,6 +31,3 @@ Description: The tracepath utility from iputils
  .
  This package also includes tracepath6 and traceroute6 utilities, which
  may be used on IPv6 networks.
- .
- If you don't know why you might need this package, you probably don't
- need it.

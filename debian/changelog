@@ -1,3 +1,10 @@
+iputils (20001110-5) unstable; urgency=low
+
+  * Documented all previously undocumented programs.
+    (Closes: Bug#43812)
+
+ -- Noah Meyerhans <noahm@debian.org>  Mon, 23 Apr 2001 16:06:58 -0400
+
 iputils (20001110-4) unstable; urgency=low
 
   * New maintainer (Closes: Bug#84024)

@@ -55,22 +55,14 @@ binary-indep: build install
 	dh_testversion 1.1.17
 	dh_testdir
 	dh_testroot
-#	dh_installdebconf
 	dh_installdocs
 	dh_installexamples
 	dh_installmenu
-#	dh_installemacsen
-#	dh_installpam
-#	dh_installinit
-	#dh_installcron
-#	dh_undocumented
 	dh_installchangelogs 
 	dh_link
 	dh_compress
 	dh_fixperms
-	# You may want to make some executables suid here.
 	dh_installdeb
-#	dh_perl
 	dh_gencontrol
 	dh_md5sums
 	dh_builddeb
@@ -83,21 +75,12 @@ binary-arch: build install
 	dh_testversion 1.1.17
 	dh_testdir
 	dh_testroot
-#	dh_installdebconf
 	dh_installdocs
 	dh_installexamples
 	dh_installmenu
-#	dh_installemacsen
-#	dh_installpam
-#	dh_installinit
 	dh_installcron
-	#dh_installmanpages
-	#rm debian/tmp/usr/share/man/man8/tracepath.8
-	#rm debian/iputils-tracepath/usr/share/man/man8/*ping*
 	dh_installmanpages -piputils-tracepath ping6.8 ping.8 arping.8 clockdiff.8 in.rdisc.8c
-	dh_installmanpages -piputils-ping tracepath.8 clockdiff.8 in.rdisc.8c
-	#dh_installinfo
-#	dh_undocumented
+	dh_installmanpages -piputils-ping tracepath.8 tracepath6.8 clockdiff.8 in.rdisc.8c traceroute6.8
 	dh_installchangelogs 
 	dh_strip
 	dh_link
@@ -108,8 +91,6 @@ binary-arch: build install
 	chmod 4755 debian/tmp/bin/ping6
 	chmod 4755 debian/iputils-tracepath/usr/sbin/traceroute6
 	dh_installdeb
-#	dh_makeshlibs
-#	dh_perl
 	dh_shlibdeps
 	dh_gencontrol
 	dh_md5sums
