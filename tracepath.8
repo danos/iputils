@@ -1,0 +1,37 @@
+.\" -*- nroff -*-
+.TH TRACEPATH 8 "January 1999" "iputils-ss990107" "Linux Programmer's Manual"
+.SH NAME
+tracepath \- traces path to <destination> discovering MTU along this path
+.SH SYNOPSIS
+.B tracepath
+destination [ port ]
+.SH DESCRIPTION
+It traces path to <destination> discovering MTU along this path.
+It uses UDP port <port> or some random port.
+.TP
+tracepath6 is good replacement for traceroute6
+and classic example of application Linux error queues.
+tracepath is worse, because commercial IP routers
+do not return enough information in icmp error messages.
+Probably, it will change, when they will be updated.
+For now it uses Van Jacobson's trick, sweaping a range
+of UDP ports to maintain trace history.
+using source address <source>.
+.SH WARNING
+GENERAL NOTE: all these applets, except for tracepath[6]
+should be excecutabel only with CAP_NET_RAWIO capability.
+To all that I know, they are safe to be used as setuid root.
+.SH AUTHOR
+.B tracepath
+was written by Alexey Kuznetsov <kuznet@ms2.inr.ac.ru>
+.SH BUGS
+If someone will dig out bugs, which
+were fixed after my versions were cloned: PLEASE, tell me!
+.SH AVAILABILITY
+.B tracepath
+is part of the iputils-ss990107 package and is available for anonymous 
+ftp <ftp://ftp.inr.ac.ru/ip-routing/iputils-ss990107.tar.gz>
+.SH SEE ALSO
+.BR ping (8),
+.BR clockdiff (8),
+.BR arping (8)

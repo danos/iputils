@@ -1,0 +1,116 @@
+[001110]
+* ping is able to select TOS. By Pekka Savola <pekkas@netcore.fi>
+* tracepath* DNS names. By Pawel Krawczyk <kravietz@ceti.com.pl> and
+  Arkadiusz Miskiewicz <misiek@pld.org.pl>
+* ping6 is expected to be compiled with linux-2.2.
+
+[001011]
+* RH bugid#16677: segfault, when ping is used by root and size
+  is large enough. Fix is to allow oversize by root (it is necessary
+  to check kernel side), but clamp it at some safe value.
+
+[001010]
+* More bug fixes from Chris Evans <chris@ferret.lmh.ox.ac.uk>
+  - do not trust h_length returned by system resolver.
+    This value is meaningless in any case.
+  - ping: buffer overflow in fill()!!! Disgraceful bug.
+
+* ping: allow not-priviledged users to use broadcasts. It was paranoia.
+  Multicasts were allowed. 8)
+* ping: but force broadcasts&multicasts not to fragment. BSD does
+  not allow to do this to anyone, we still allow this for superuser.
+* Option -M to control path mtu discovery.
+
+[001007]
+* By Pekka Savola <pekkas@netcore.fi>
+  - SIOCGSTAMP/SO_TIMESTAMP are sensitive to bug in kernel.
+    When get_fast_time != gettimeofday (f.e. timestampless x86),
+    returned stamp can be out of sync with gettimeofday.
+    Workaround is not to use SIOCGSTAMP/SO_TIMESTAMP on such systems.
+  - fixes in man pages
+  - compiles under rh-7.0
+* Chris Evans <chris@ferret.lmh.ox.ac.uk>
+  - ping: possible buffer overflow in pr_addr().
+
+[000928]
+* Sorry. I have lost all the CVS with changes made since 000418.
+  If someone sent me a patch after this date, please, resubmit.
+  Restored from the last backup and mailboxes:
+
+* ping*, SO_TIMESTAMP support.
+* ping*, allow zero data length (reported by Damjan Lango <damjan.lango@hermes.si>)
+* iputils man and help updates. Pekka Savola <Pekka.Savola@netcore.fi>
+* ping.8, fix to ping man page. By Dadid Eisner <cradle@glue.umd.edu>
+* ping prints addresses in numeric, if destination is numeric.
+  Proposed by Tim Waugh <twaugh@meme.surrey.redhat.com>
+
+New:
+* ping: strncpy bug <typo@inferno.tusculum.edu>
+* arping: improvements by Charles Howes <croot@micro-logistics.com>
+	- a feature to arping: quit as soon as a reply is received.
+	- default to eth0.
+	- spelling
+
+[000418]
+* llsqrt() was buggy again!
+       (noticed by Sam Farin <sfarin@ratol.fi>)
+
+[000404]
+* tracepath*, "NURDUnet-gw" bug workaround.
+	(noticed by Vitaly E.Lavrov <lve@aanet.ru>)
+* tracepath*, handle case of routers initializing rtt to 128.
+	Vitaly E.Lavrov <lve@aanet.ru>
+* shadowed icmp_sock in ping6. James Morris <jmorris@@intercode.com.au>
+* Bug in ping -f, introduced with SO_RCVTIMEO. me.
+* llsqrt() (ping, ping6) was wrong yet. me.
+
+[000310]
+* Print mean deviation of RTT in ping/ping6.
+* Use SIOCGSTAMP in ping/ping6. Old behaviour calculating
+  true user-to-user latency is restored with option -U.
+  Reason for this stupid change is mainly political; people
+  wonder why freebsd has twice less latency on loopback.
+  If to follow along this line, we have to print rtt equal to 0. 8)
+  [ LATER NOTE: actually, the change is _right_ without any doubts.
+    Ping has another bug: nameresolver is blocking, so that
+    when it dies not respond, ping shows evenly increasing by 1 sec
+    RTT. It is very confusing (look through linux-kernel maillists
+    to count number of people, who were cheated by misconfigured dns). ]
+* Use SO_RCVTIMEO instead of poll() with ping/ping6 -f.
+* Added -V option to arping/ping/ping6/traceroute6/rdisc
+  to print snapshot number.
+
+[000305]
+* rdisc: ugly bug in getting interface list. me.
+* ping/ping6: ping -i N, N>=3 did not work. Jeff Jonson <jbj@redhat.com>
+* ping/ping6: microsecond rtt measurements. me.
+
+[000120]
+* ping/ping6: non-zero exit code even without -w.
+
+[991024]
+* Option "-i" to ping/ping6 takes fractional time now, so that
+  "ping -i 0.3 xxx" pings each 300 msec. The idea is by
+  Marc Boucher <marc@mbsi.ca>
+* alpha/glibc-2.1 alignment problems in ping are fixed (struct timeval
+  was wrongly aligned).
+
+[990915]
+* ping/ping6 worked only with kernels 2.3.15+ in 990824.
+
+[990824]
+* tftpd is added. It uses MSG_CONFIRM to confirm arp entries.
+* ping6: workaround for bug in some egcs versions.
+
+[990610]
+* ping: output buffer was too small for full sized ping.
+* ping: silly restriction on ping size is removed.
+
+[990530]
+* short man pages (Oleg M. Shumsky <oms@cp.tomsk.su>)
+* ping6: get and print hop limit of reply packets (ME)
+* rdisc deletes routes before exit with -TERM
+* ping/ping6: option -w TIMEOUT 
+* arping: exit with error, if received no replies in normal
+  (not DAD and not unsilicited ARP) mode.
+
