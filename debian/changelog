@@ -2,13 +2,13 @@ iputils (3:20020124-4) unstable; urgency=medium
 
   * Fixed improper behavior in traceroute6 when run with -q1
     (Closes: Bug#151980)
-  * Removed the need to include headers from the local glibc-bugs 
+  * Removed the need to include headers from the local glibc-bugs
     directory, which fixes a whole lot of headaches in cases where
     glibc-bugs is not consistant with what's in /usr/include/.
     Note that this causes these packages to work on MIPS, which they
     didn't do before.
-  * Got rid of direct includes of headers in /usr/include/linux/ in 
-    ping, ping6, arping, and traceroute6, in an attempt allow this 
+  * Got rid of direct includes of headers in /usr/include/linux/ in
+    ping, ping6, arping, and traceroute6, in an attempt allow this
     package to build on non-Linux kernels.  tracepath and tracepath6
     probably can't be fixed, since they exist in part to demonstrate
     Linux-specific features (stuff from /usr/include/linux/errqueue.h)
@@ -18,8 +18,10 @@ iputils (3:20020124-4) unstable; urgency=medium
     header that is now used in place of linux/icmp.h
   * Undid something that was screwed up by an earlier Debian patch
     which caused annoying warnings to be printed.  (Closes: Bug#139151)
+  * Install RELNOTES into /usr/share/doc/iputils-*, as it contains
+    the upstream changelog.
 
- -- Noah Meyerhans <noahm@debian.org>  Wed,  2 Oct 2002 18:00:39 -0400
+ -- Noah Meyerhans <noahm@debian.org>  Wed,  2 Oct 2002 18:14:44 -0400
 
 iputils (3:20020124-3) unstable; urgency=medium
 
