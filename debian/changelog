@@ -1,3 +1,21 @@
+iputils (3:20020124-4) unstable; urgency=low
+
+  * Fixed improper behavior in traceroute6 when run with -q1
+    (Closes: Bug#151980)
+  * Removed the need to include headers from the local glibc-bugs 
+    directory, which fixes a whole lot of headaches in cases where
+    glibc-bugs is not consistant with what's in /usr/include/.
+    Note that this causes these packages to work on MIPS, which they
+    didn't do before.
+  * Got rid of direct includes of headers in /usr/include/linux/ in 
+    ping, ping6, arping, and traceroute6, which should allow this 
+    package to build on non-Linux kernels.  tracepath and tracepath6
+    probably can't be fixed, since they exist in part to demonstrate
+    Linux-specific features (stuff from /usr/include/linux/errqueue.h)
+  * Minor changes to the description fields in debian/control
+
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 22 Sep 2002 11:48:46 -0400
+
 iputils (3:20020124-3) unstable; urgency=medium
 
   * Added kludge to force -U on ping and ping6 on SPARC, since neither
