@@ -70,8 +70,6 @@ binary-indep: build install
 # Pass -a to all debhelper commands in this target to reduce clutter.
 binary-arch: DH_OPTIONS=
 binary-arch: build install
-	# Need this version of debhelper for DH_OPTIONS to work.
-	dh_testversion 1.1.17
 	dh_testdir
 	dh_testroot
 	dh_installdocs
@@ -86,7 +84,6 @@ binary-arch: build install
 	dh_link
 	dh_compress
 	dh_fixperms
-	# You may want to make some executables suid here.
 	chmod 4755 debian/tmp/bin/ping
 	chmod 4755 debian/tmp/bin/ping6
 	chmod 4755 debian/iputils-tracepath/usr/sbin/traceroute6

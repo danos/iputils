@@ -1,3 +1,10 @@
+iputils (20001110-7) unstable; urgency=low
+
+  * Fixed the Conflicts line for iputils-arping.  (Closes: Bug#100287)
+  * Removed an obsolete call to dh_testversion in debian/rules
+
+ -- Noah Meyerhans <noahm@debian.org>  Wed, 13 Jun 2001 22:11:30 -0400
+
 iputils (20001110-6) unstable; urgency=low
 
   * Split arping out into its own separate package (iputils-arping)
