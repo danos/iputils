@@ -614,7 +614,7 @@ int gather_statistics(__u8 *ptr, int cc, __u16 seq, int hops,
 		      int csfailed, struct timeval *tv, char *from)
 {
 	int dupflag = 0;
-	long triptime = 0;
+	time_t triptime = 0;
 
 	++nreceived;
 	if (!csfailed)
