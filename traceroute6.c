@@ -246,10 +246,8 @@ char copyright[] =
 #include <netinet/ip_icmp.h>
 #include <netinet/udp.h>
 
-#include <linux/ipv6.h>
-#include <linux/in6.h>
-
-#include <linux/icmpv6.h>
+#include <netinet/icmp6.h>
+#include <netinet/ip6.h>
 
 #include <arpa/inet.h>
 
@@ -314,8 +312,8 @@ int nflag;			/* print addresses numerically */
 
 struct pkt_format
 {
-	__u32 ident;
-	__u32 seq;
+        u_int32_t ident;
+        u_int32_t seq;
 	struct timeval tv;
 };
 
@@ -563,20 +561,20 @@ int main(int argc, char *argv[])
 					}
 					Printf("  %g ms", deltaT(&t1, &t2));
 					switch(i - 1) {
-					case ICMPV6_PORT_UNREACH:
+					case ICMP6_DST_UNREACH_NOPORT:
 						++got_there;
 						break;
 
-					case ICMPV6_NOROUTE:
+					case ICMP6_DST_UNREACH_NOROUTE:
 						++unreachable;
 						Printf(" !N");
 						break;
-					case ICMPV6_ADDR_UNREACH:
+					case ICMP6_DST_UNREACH_ADDR:
 						++unreachable;
 						Printf(" !H");
 						break;
 
-					case ICMPV6_ADM_PROHIBITED:
+					case ICMP6_DST_UNREACH_ADMIN:
 						++unreachable;
 						Printf(" !S");
 						break;
@@ -628,8 +626,11 @@ wait_for_reply(sock, from, reset_timer)
 	}
 
 	if (select(sock+1, &fds, (fd_set *)0, (fd_set *)0, &wait) > 0) {
-		cc=recvfrom(icmp_sock, (char *)packet, sizeof(packet), 0,
+		char foo[20];
+		size_t foo_size;
+		cc=recvfrom(icmp_sock, (unsigned char *)packet, sizeof(packet), 0,
 			    (struct sockaddr *)from, &fromlen);
+
 	}
 
 	return(cc);
@@ -715,24 +716,25 @@ char * pr_type(unsigned char t)
 int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
 	      struct timeval *tv)
 {
-	struct icmp6hdr *icp;
-	u_char type, code;
+	struct icmp6_hdr *icp;
+	uint8_t type, code;
 
-	icp = (struct icmp6hdr *) buf;
+	icp = (struct icmp6_hdr *) buf;
 
 	type = icp->icmp6_type;
 	code = icp->icmp6_code;
 
-	if ((type == ICMPV6_TIME_EXCEED && code == ICMPV6_EXC_HOPLIMIT) ||
-	    type == ICMPV6_DEST_UNREACH)
+	if ((type == ICMP6_TIME_EXCEEDED && code == ICMP6_TIME_EXCEED_TRANSIT)
+	    || type == ICMP6_DST_UNREACH)
 	{
-		struct ipv6hdr *hip;
+		struct ip6_hdr *hip;
 		struct udphdr *up;
-		int nexthdr;
+		uint8_t nexthdr;
 
-		hip = (struct ipv6hdr *) (icp + 1);
-		up = (struct udphdr *)(hip+1);
-		nexthdr = hip->nexthdr;
+  		hip = (struct ip6_hdr *) (icp + 1); 
+  		up = (struct udphdr *)(hip+1);
+
+		nexthdr = hip->ip6_ctlun.ip6_un1.ip6_un1_nxt;
 
 		if (nexthdr == 44) {
 			nexthdr = *(unsigned char*)up;
@@ -748,29 +750,29 @@ int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
 			    ntohl(pkt->seq) == seq)
 			{
 				*tv = pkt->tv;
-				return (type == ICMPV6_TIME_EXCEED? -1 : code+1);
+				return (type == ICMP6_TIME_EXCEEDED? -1 : code+1);
 			}
 		}
 
 	}
 
 	if (verbose) {
-		struct ipv6hdr *hip;
-		__u32 *lp;
+		struct ip6_hdr *hip;
+		u_int32_t *lp;
 		char pa1[64];
 		char pa2[64];
 		int i;
-		hip = (struct ipv6hdr *) (icp + 1);
-		lp = (__u32 *) (icp + 1);
+		hip = (struct ip6_hdr *) (icp + 1);
+		lp = (u_int32_t *) (icp + 1);
 
 		Printf("\n%d bytes from %s to %s", cc,
-		       inet_ntop(AF_INET6, &hip->saddr, pa1, 64),
-		       inet_ntop(AF_INET6, &hip->daddr, pa2, 64));
+		       inet_ntop(AF_INET6, &hip->ip6_src, pa1, 64),
+		       inet_ntop(AF_INET6, &hip->ip6_dst, pa2, 64));
 		
 		Printf(": icmp type %d (%s) code %d\n", type, pr_type(type),
 		       icp->icmp6_code);
 
-		for (i = sizeof(struct ipv6hdr); i < cc ; i += 4)
+		for (i = sizeof(struct ip6_hdr); i < cc ; i += 4)
 			Printf("%2d: x%8.8x\n", i, *lp++);
 	}
 
