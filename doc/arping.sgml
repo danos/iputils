@@ -130,8 +130,6 @@ probes are answered.
 <para>
 <link linkend="ping">
 <citerefentry><refentrytitle/ping/<manvolnum/8/</citerefentry></link>,
-<link linkend="clockdiff">
-<citerefentry><refentrytitle/clockdiff/<manvolnum/8/</citerefentry></link>,
 <link linkend="tracepath">
 <citerefentry><refentrytitle/tracepath/<manvolnum/8/</citerefentry></link>.
 </para>
