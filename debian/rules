@@ -88,6 +88,7 @@ binary-arch: build install
 	chmod 4755 debian/iputils-tracepath/usr/sbin/traceroute6
 	chmod 4755 debian/iputils-arping/usr/sbin/arping
 	ln -sf ping.8.gz debian/tmp/usr/share/man/man8/ping6.8.gz
+	ln -sf tracepath.8.gz debian/iputils-tracepath/usr/share/man/man8/tracepath6.8.gz
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol
