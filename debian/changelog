@@ -1,3 +1,12 @@
+iputils (20001110-6) unstable; urgency=low
+
+  * Split arping out into its own separate package (iputils-arping)
+  * Made iputils-arping conflict with arping, another package which 
+    provided the arping binary (Closes: Bug#99295)
+  * Bumped the package standards version up to 3.5.4.0
+
+ -- Noah Meyerhans <noahm@debian.org>  Sun,  3 Jun 2001 14:21:35 -0400
+
 iputils (20001110-5) unstable; urgency=low
 
   * Documented all previously undocumented programs.

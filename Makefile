@@ -50,7 +50,7 @@ clean:
 install: all
 	install -m 4755 -o root -g root ping $(BASEDIR)/bin/
 	install -m 4755 -o root -g root ping6 $(BASEDIR)/bin/
-	install -m 4755 -o root -g root traceroute6 $(BASEDIR)/usr/sbin/
+	install -m 4755 -o root -g root traceroute6 $(BASEDIR)/usr/sbin
 	install -m 0755 -o root -g root tracepath $(BASEDIR)/usr/sbin/
 	install -m 0755 -o root -g root tracepath6 $(BASEDIR)/usr/sbin/
 	install -m 0755 -o root -g root arping $(BASEDIR)/usr/sbin/

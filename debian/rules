@@ -45,14 +45,13 @@ install: build
 	$(MAKE) install BASEDIR=`pwd`/debian/tmp
 
 	dh_movefiles -p iputils-tracepath usr/sbin/trace{path,path6,route6} 
+	dh_movefiles -p iputils-arping usr/sbin/arping
 	#dh_movefiles -p iputils-ping bin/ping bin/ping6 usr/bin/arping
 
 # Build architecture-independent files here.
 # Pass -i to all debhelper commands in this target to reduce clutter.
 binary-indep: DH_OPTIONS=
 binary-indep: build install
-	# Need this version of debhelper for DH_OPTIONS to work.
-	dh_testversion 1.1.17
 	dh_testdir
 	dh_testroot
 	dh_installdocs
@@ -80,7 +79,8 @@ binary-arch: build install
 	dh_installmenu
 	dh_installcron
 	dh_installmanpages -piputils-tracepath ping6.8 ping.8 arping.8 clockdiff.8 in.rdisc.8c
-	dh_installmanpages -piputils-ping tracepath.8 tracepath6.8 clockdiff.8 in.rdisc.8c traceroute6.8
+	dh_installmanpages -piputils-ping tracepath.8 tracepath6.8 clockdiff.8 in.rdisc.8c traceroute6.8 arping.8
+	dh_installmanpages -piputils-arping ping6.8 ping.8 clockdiff.8 in.rdisc.8c tracepath.8 tracepath6.8 traceroute6.8
 	dh_installchangelogs 
 	dh_strip
 	dh_link
@@ -90,6 +90,7 @@ binary-arch: build install
 	chmod 4755 debian/tmp/bin/ping
 	chmod 4755 debian/tmp/bin/ping6
 	chmod 4755 debian/iputils-tracepath/usr/sbin/traceroute6
+	chmod 4755 debian/iputils-arping/usr/sbin/arping
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol
