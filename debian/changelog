@@ -4,8 +4,9 @@ iputils (3:20020927-2) unstable; urgency=low
     We still define our own versions of things that should be included
     from /usr/src/sys, and this needs to be fixed, but I will wait until
     post sarge to do so.  (Closes: Bug#223164)
+  * Install symlink for tracepath6 man page.
 
- -- Noah Meyerhans <noahm@debian.org>  Mon, 22 Dec 2003 14:37:32 -0500
+ -- Noah Meyerhans <noahm@debian.org>  Mon, 22 Dec 2003 15:26:54 -0500
 
 iputils (3:20020927-1) unstable; urgency=medium
 
