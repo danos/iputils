@@ -12,13 +12,14 @@
 #include <stdlib.h>
 #include <sys/param.h>
 #include <sys/socket.h>
-#include <linux/sockios.h>
+#include <netpacket/packet.h>
+#include <net/ethernet.h>
 #include <sys/file.h>
 #include <sys/time.h>
 #include <sys/signal.h>
 #include <sys/ioctl.h>
-#include <linux/if.h>
-#include <linux/if_arp.h>
+#include <net/if.h>
+#include <net/if_arp.h>
 #include <sys/uio.h>
 
 #include <netdb.h>
@@ -101,7 +102,7 @@ int send_pack(int s, struct in_addr src, struct in_addr dst,
 	ah->ar_hrd = htons(ME->sll_hatype);
 	if (ah->ar_hrd == htons(ARPHRD_FDDI))
 		ah->ar_hrd = htons(ARPHRD_ETHER);
-	ah->ar_pro = htons(ETH_P_IP);
+	ah->ar_pro = htons(ETHERTYPE_IP);
 	ah->ar_hln = ME->sll_halen;
 	ah->ar_pln = 4;
 	ah->ar_op  = advert ? htons(ARPOP_REPLY) : htons(ARPOP_REQUEST);
@@ -213,7 +214,7 @@ int recv_pack(unsigned char *buf, int len, struct sockaddr_ll *FROM)
 		return 0;
 
 	/* Protocol must be IP. */
-	if (ah->ar_pro != htons(ETH_P_IP))
+	if (ah->ar_pro != htons(ETHERTYPE_IP))
 		return 0;
 	if (ah->ar_pln != 4)
 		return 0;
