@@ -444,6 +444,12 @@ int main(int argc, char *argv[])
 	 *	select icmp echo reply as icmp type to receive
 	 */
 
+	/* This whole ifndef __sparc__ crap must go as soon as I
+	   figure out why the filter isn't working right on sparc.
+	   Until then, I'll leave this in as a kludge so ping6 isn't
+	   100% useless
+	*/
+#ifndef __sparc__
 	ICMPV6_FILTER_SETBLOCKALL(&filter);
 
 	if (!working_recverr) {
@@ -454,7 +460,9 @@ int main(int argc, char *argv[])
 	}
 
 	ICMPV6_FILTER_SETPASS(ICMPV6_ECHO_REPLY, &filter);
-
+#else
+	ICMPV6_FILTER_SETPASSALL(&filter);
+#endif /* SPARC */
 	err = setsockopt(icmp_sock, SOL_ICMPV6, ICMPV6_FILTER, &filter,
 			 sizeof(struct icmp6_filter));
 
@@ -883,8 +891,8 @@ void install_filter(void)
 	/* Patch bpflet for current identifier. */
 	insns[1] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, __constant_htons(ident), 0, 1);
 
-	if (setsockopt(icmp_sock, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
-		perror("WARNING: failed to install socket filter\n");
+	/*	if (setsockopt(icmp_sock, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
+		perror("WARNING: failed to install socket filter\n");*/
 }
 
 
