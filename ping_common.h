@@ -202,3 +202,53 @@ extern void status(void);
 extern void common_options(int ch);
 extern int gather_statistics(uint8_t *ptr, int cc, u_int16_t seq, int hops,
 			     int csfailed, struct timeval *tv, char *from);
+
+#define SO_EE_ORIGIN_NONE       0
+#define SO_EE_ORIGIN_LOCAL      1
+#define SO_EE_ORIGIN_ICMP       2
+#define SO_EE_ORIGIN_ICMP6      3
+
+struct sock_extended_err
+{
+    u_int32_t       ee_errno;   /* error number */
+    u_int8_t        ee_origin;  /* where the error originated */
+    u_int8_t        ee_type;    /* type */
+    u_int8_t        ee_code;    /* code */
+    u_int8_t        ee_pad;
+    u_int32_t       ee_info;    /* additional information */
+    u_int32_t       ee_data;    /* other data */
+    /* More data may follow */
+};
+
+/*
+ *      constants for (set|get)sockopt
+ *      XXX These were pulled from the kernel icmp.h.  They should be
+ *	in glibc.
+ */
+
+#define ICMP_FILTER                     1
+
+struct icmp_filter {
+        u_int32_t           data;
+};
+
+/*
+ *      Try and keep these values and structures similar to BSD, especially
+ *      the BPF code definitions which need to match so you can share filters
+ *	XXX These were pulled from linux/filter.h.  They should probably
+ *	be in glibc.
+ */
+ 
+struct sock_filter      /* Filter block */
+{
+        u_int16_t   code;   /* Actual filter code */
+        u_int8_t    jt;     /* Jump true */
+        u_int8_t    jf;     /* Jump false */
+        u_int32_t   k;      /* Generic multiuse field */
+};
+
+struct sock_fprog       /* Required for SO_ATTACH_FILTER. */
+{
+        unsigned short          len;    /* Number of filter blocks */
+        struct sock_filter      *filter;
+};
