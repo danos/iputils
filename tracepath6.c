@@ -9,13 +9,18 @@
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  */
 
+#include <sys/types.h>
+typedef u_int32_t __u32;
+typedef u_int8_t __u8;
+typedef u_int16_t __u16;
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <linux/in6.h>
+#include <netinet/ip6.h>
 #include <linux/errqueue.h>
 #include <errno.h>
 #include <string.h>
