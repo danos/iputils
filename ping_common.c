@@ -401,6 +401,13 @@ void setup(int icmp_sock)
 	if (options & F_SO_DONTROUTE)
 		setsockopt(icmp_sock, SOL_SOCKET, SO_DONTROUTE, (char *)&hold, sizeof(hold));
 
+	/* Added by noahm for Debian since times are completely 
+	   mis-reported on SPARC without F_LATENCY set
+	*/
+#ifdef __sparc__
+	options |= F_LATENCY;
+#endif /* sparc */
+
 #ifdef SO_TIMESTAMP
 	if (!(options&F_LATENCY)) {
 		int on = 1;
