@@ -13,6 +13,7 @@ export BASEDIR=debian/tmp
 
 configure:
 	dh_testdir
+	$(MAKE) symlink
 
 build: configure
 	dh_testdir
