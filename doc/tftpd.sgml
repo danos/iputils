@@ -109,8 +109,8 @@ is cleaned up both syntactically (ANSIized) and semantically (UDP socket IO).
 <para>
 It is distributed with iputils mostly as good demo of an interesting feature
 (<constant/MSG_CONFIRM/) allowing to boot long images by dumb clients
-not supported ARP until they are finally booted. However, this is full
-functional and can be used in production.
+not answering ARP requests until they are finally booted.
+However, this is full functional and can be used in production.
 </para>
 </refsect1>
 

@@ -1,3 +1,54 @@
+[020927]
+* arping.sgml, some options were forgotten.
+* send seqno in network byte order. Me.
+* Mads Martin Jørgensen <mmj@suse.de> Recursive citation:
+"On request of Mads Martin Jørgensen <mmj@suse.de> I've added manpages
+pregenerated from the Docbook sources. One could argue it is redundant
+when the Docbook sources are also there, but the argument of not having
+to install Docbook on a very small system to get the man pages was
+convinving enough to me. To quote Mads Martin: "How would a system
+be without a man page for ping?" 
+  As a chilidish revenge from my side enjoy with cyrillic date in these
+  man pages. :-)
+* Ken Cox <jkc@redhat.com>. Bogus definition of SOCK_DRGAM&SOCK_STREAM on mips.
+* Error returned from recvmsg() resulted in a bogus printout in traceroute6. Me.
+* Use IPV6_CHECKSUM on icmp socket in traceroute6. Me.
+* Noah L. Meyerhans <frodo@morgul.net> Fix to doc.
+!* Noah L. Meyerhans <frodo@morgul.net> What is the problem with "long" triptime?
+!  Reporter does not respond. _Malignantly_.
+* Thomas 'Dent' Mirlacher <dent@cosy.sbg.ac.at> Ping did not exit sometimes!
+* Add option -W to override default 10 second linger timeout. Me.
+* Mads Martin Jørgensen <mmj@suse.de>: ping should not bind to autoselected
+  source address, it used to work when routing changes. Return classic
+  behaviour, option -B is added to enforce binding.
+* Pekka Savola <pekkas@netcore.fi> Forgotten \n messing output of ping6.
+* Noah L. Meyerhans <frodo@morgul.net> traceroute6 -q 1 did not work.
+* Pekka Savola <pekkas@netcore.fi> various sizeof() cleanups in traceroute6.c
+* "Dmitry V. Levin" <ldv@alt-linux.org> wrote:
+  > ping (as well as other utilities) may open raw socket with descriptor <=2;
+  > In case of suid-root, it can be used by malicious user to send data to
+  > this raw socket.
+  > 
+  > Yes, modern glibc and some kernels have workaround for it, but
+  > IMHO iputils shouldn't rely on this feature.
+  Taken into account, but no changes made.
+* "Tilman Heinrich" <tilHeinrich@web.de> said some scripts are broken
+  when word "packet" disappeared from "100% packet loss". Despite of
+  the inarguable fact that such scripts are truly mad and deserve breaking
+  (sigh... exit codes are too smart concept for script writers, I guess),
+  I have to recognize removing this word carrying zero information
+  was not enough motivated. Returned.
+* ping used to retry forever when seeing ENOBUFS/ENOMEM without explicitly
+  given deadline. Being logically correct it is bad in practice f.e. when
+  pinging buggy device which locked up with some packets in queue.
+  So, retry for a finite time... let is be lingertime. Fair? Me.
+* Two "messages" are sent to rpm maintainers to make their wrong patches
+  failed.
+* Fix from RH iputils-20001007-deadline.patch. It was lost in the latest
+  rpms btw.
+* Dax Kelson <dax@gurulabs.com>: added _unsupported_ option to comppile
+  rdisc_srv.
+
 [020124]
 * Michal Kochanowicz <michal@michal.waw.pl> typos in tracepath.8
 * Michael Wardle <michael.wardle@adacel.com>: undo silly change of ss000305

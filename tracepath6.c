@@ -9,18 +9,13 @@
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  */
 
-#include <sys/types.h>
-typedef u_int32_t __u32;
-typedef u_int8_t __u8;
-typedef u_int16_t __u16;
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <netinet/ip6.h>
+#include <linux/in6.h>
 #include <linux/errqueue.h>
 #include <errno.h>
 #include <string.h>
@@ -181,7 +176,7 @@ restart:
 
 	if (rettv) {
 		int diff = (tv.tv_sec-rettv->tv_sec)*1000000+(tv.tv_usec-rettv->tv_usec);
-		printf("%3d.%03dms ", diff/1000, diff%1000);
+		printf("%3d.%3dms ", diff/1000, diff%1000);
 		if (broken_router)
 			printf("(This broken router returned corrupted payload) ");
 	}

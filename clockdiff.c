@@ -286,7 +286,7 @@ empty:
         		}
                       }
 		}
-send_next:
+send_next: ;
 	}
 
 good_exit:
@@ -494,7 +494,7 @@ empty:
 				}
 			}
 		}
-send_next:
+send_next: ;
 	}
 
 good_exit:

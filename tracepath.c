@@ -9,11 +9,6 @@
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  */
 
-#include <sys/types.h>
-typedef u_int32_t __u32;
-typedef u_int8_t __u8;
-typedef u_int16_t __u16;
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -288,7 +283,7 @@ main(int argc, char **argv)
 		case 'n':	
 			no_resolve = 1;
 			break;
-		default:	
+		default: ;	
 		}
 	}
 

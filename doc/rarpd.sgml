@@ -43,7 +43,6 @@ an image appropriate for SUM4M in directory <filename>/etc/tftpboot</filename>.
 <para>
 This facility is deeply obsoleted by
 <ulink url="ftp://ftp.isi.edu/in-notes/rfc951.txt">BOOTP</ulink>
-BOOTP
 and later
 <ulink url="ftp://ftp.isi.edu/in-notes/rfc2131.txt">DHCP</ulink> protocols.
 However, some clients really still need this to boot.

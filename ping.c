@@ -62,7 +62,7 @@ char copyright[] =
 
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
-#include <net/bpf.h>
+
 
 #define	MAXIPLEN	60
 #define	MAXICMPLEN	76
@@ -72,7 +72,7 @@ char copyright[] =
 
 static int ts_type;
 static int nroute = 0;
-static u_int32_t route[10];
+static __u32 route[10];
 
 
 
@@ -85,12 +85,12 @@ int maxpacket = sizeof(outpack);
 
 static int broadcast_pings = 0;
 
-static char *pr_addr(u_int32_t);
+static char *pr_addr(__u32);
 static void pr_options(unsigned char * cp, int hlen);
 static void pr_iph(struct iphdr *ip);
 static void usage(void) __attribute__((noreturn));
 static u_short in_cksum(const u_short *addr, int len, u_short salt);
-static void pr_icmph(uint8_t type, uint8_t code, u_int32_t info, struct icmphdr *icp);
+static void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp);
 static int parsetos(char *str);
 
 static struct {
@@ -102,7 +102,7 @@ int cmsg_len;
 
 struct sockaddr_in source;
 char *device;
-int pmtudisc=-1;
+int pmtudisc = -1;
 
 
 int
@@ -169,12 +169,13 @@ main(int argc, char **argv)
 
 			if (sscanf(optarg, "%u.%u.%u.%u%c",
 				   &i1, &i2, &i3, &i4, &dummy) == 4) {
-				uint8_t *ptr;
-				ptr = (uint8_t*)&source.sin_addr;
+				__u8 *ptr;
+				ptr = (__u8*)&source.sin_addr;
 				ptr[0] = i1;
 				ptr[1] = i2;
 				ptr[2] = i3;
 				ptr[3] = i4;
+				options |= F_STRICTSOURCE;
 			} else {
 				device = optarg;
 			}
@@ -358,7 +359,8 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (bind(icmp_sock, (struct sockaddr*)&source, sizeof(source)) == -1) {
+	if ((options&F_STRICTSOURCE) &&
+	    bind(icmp_sock, (struct sockaddr*)&source, sizeof(source)) == -1) {
 		perror("bind");
 		exit(2);
 	}
@@ -374,6 +376,7 @@ main(int argc, char **argv)
 		if (setsockopt(icmp_sock, SOL_RAW, ICMP_FILTER, (char*)&filt, sizeof(filt)) == -1)
 			perror("WARNING: setsockopt(ICMP_FILTER)");
 	}
+
 	hold = 1;
 	if (setsockopt(icmp_sock, SOL_IP, IP_RECVERR, (char *)&hold, sizeof(hold)))
 		fprintf(stderr, "WARNING: your kernel is veeery old. No problems.\n");
@@ -401,7 +404,7 @@ main(int argc, char **argv)
 			int i;
 			rspace[1] = 4+nroute*8;
 			for (i=0; i<nroute; i++)
-				*(u_int32_t*)&rspace[4+i*8] = route[i];
+				*(__u32*)&rspace[4+i*8] = route[i];
 		}
 		if (setsockopt(icmp_sock, IPPROTO_IP, IP_OPTIONS, rspace, rspace[1]) < 0) {
 			rspace[3] = 2;
@@ -421,7 +424,7 @@ main(int argc, char **argv)
 		rspace[1+IPOPT_OLEN] = 3 + nroute*4;
 		rspace[1+IPOPT_OFFSET] = IPOPT_MINOFF;
 		for (i=0; i<nroute; i++)
-			*(u_int32_t*)&rspace[4+i*4] = route[i];
+			*(__u32*)&rspace[4+i*4] = route[i];
 		
 		if (setsockopt(icmp_sock, IPPROTO_IP, IP_OPTIONS, rspace, 4 + nroute*4) < 0) {
 			perror("ping: record route");
@@ -444,14 +447,15 @@ main(int argc, char **argv)
 		}
         }
 
-	if (moptions & MULTICAST_NOLOOP) {
+	if (options & F_NOLOOP) {
+		int loop = 0;
 		if (setsockopt(icmp_sock, IPPROTO_IP, IP_MULTICAST_LOOP,
 							&loop, 1) == -1) {
 			perror ("ping: can't disable multicast loopback");
 			exit(2);
 		}
 	}
-	if (moptions & MULTICAST_TTL) {
+	if (options & F_TTL) {
 		int ittl = ttl;
 		if (setsockopt(icmp_sock, IPPROTO_IP, IP_MULTICAST_TTL,
 							&ttl, 1) == -1) {
@@ -483,7 +487,8 @@ main(int argc, char **argv)
 	}
 
 	printf("PING %s (%s) ", hostname, inet_ntoa(whereto.sin_addr));
-	printf("from %s %s: ", inet_ntoa(source.sin_addr), device ?: "");
+	if (device || (options&F_STRICTSOURCE))
+		printf("from %s %s: ", inet_ntoa(source.sin_addr), device ?: "");
 	printf("%d(%d) bytes of data.\n", datalen, datalen+8+optlen+20);
 
 	setup(icmp_sock);
@@ -529,6 +534,7 @@ int receive_error_msg()
 	}
 	if (e == NULL)
 		abort();
+
 	if (e->ee_origin == SO_EE_ORIGIN_LOCAL) {
 		local_errors++;
 		if (options & F_QUIET)
@@ -552,7 +558,7 @@ int receive_error_msg()
 			goto out;
 		}
 
-		acknowledge(icmph.un.echo.sequence);
+		acknowledge(ntohs(icmph.un.echo.sequence));
 
 		if (!working_recverr) {
 			struct icmp_filter filt;
@@ -572,7 +578,7 @@ int receive_error_msg()
 		if (options & F_FLOOD) {
 			write(STDOUT_FILENO, "\bE", 2);
 		} else {
-			printf("From %s icmp_seq=%u ", pr_addr(sin->sin_addr.s_addr), icmph.un.echo.sequence);
+			printf("From %s icmp_seq=%u ", pr_addr(sin->sin_addr.s_addr), ntohs(icmph.un.echo.sequence));
 			pr_icmph(e->ee_type, e->ee_code, e->ee_info, NULL);
 			fflush(stdout);
 		}
@@ -601,10 +607,10 @@ int send_probe()
 	icp->type = ICMP_ECHO;
 	icp->code = 0;
 	icp->checksum = 0;
-	icp->un.echo.sequence = ntransmitted+1;
+	icp->un.echo.sequence = htons(ntransmitted+1);
 	icp->un.echo.id = ident;			/* ID */
 
-	CLR(icp->un.echo.sequence % mx_dup_ck);
+	CLR((ntransmitted+1) % mx_dup_ck);
 
 	if (timing) {
 		if (options&F_LATENCY) {
@@ -659,7 +665,7 @@ int
 parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 {
 	struct sockaddr_in *from = addr;
-	uint8_t *buf = msg->msg_iov->iov_base;
+	__u8 *buf = msg->msg_iov->iov_base;
 	struct icmphdr *icp;
 	struct iphdr *ip;
 	int hlen;
@@ -683,8 +689,8 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 	if (icp->type == ICMP_ECHOREPLY) {
 		if (icp->un.echo.id != ident)
 			return 1;			/* 'Twas not our ECHO */
-		if (gather_statistics((uint8_t*)(icp+1), cc,
-				      icp->un.echo.sequence,
+		if (gather_statistics((__u8*)(icp+1), cc,
+				      ntohs(icp->un.echo.sequence),
 				      ip->ttl, 0, tv, pr_addr(from->sin_addr.s_addr)))
 			return 0;
 	} else {
@@ -715,7 +721,7 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 				error_pkt = (icp->type != ICMP_REDIRECT &&
 					     icp->type != ICMP_SOURCE_QUENCH);
 				if (error_pkt) {
-					acknowledge(icp1->un.echo.sequence);
+					acknowledge(ntohs(icp1->un.echo.sequence));
 					if (working_recverr) {
 						return 0;
 					} else {
@@ -725,7 +731,7 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 						 * the first error and warn on the second.
 						 */
 						if (once++ == 1)
-							 fprintf(stderr, "\rWARNING: kernel is not very fresh, upgrade is recommended.\n");
+							fprintf(stderr, "\rWARNING: kernel is not very fresh, upgrade is recommended.\n");
 						if (once == 1)
 							return 0;
 					}
@@ -740,7 +746,7 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 				}
 				printf("From %s: icmp_seq=%u ",
 				       pr_addr(from->sin_addr.s_addr),
-				       icp1->un.echo.sequence);
+				       ntohs(icp1->un.echo.sequence));
 				if (csfailed)
 					printf("(BAD CHECKSUM)");
 				pr_icmph(icp->type, icp->code, ntohl(icp->un.gateway), icp);
@@ -815,7 +821,7 @@ in_cksum(const u_short *addr, register int len, u_short csum)
  * pr_icmph --
  *	Print a descriptive string about an ICMP header.
  */
-void pr_icmph(uint8_t type, uint8_t code, u_int32_t info, struct icmphdr *icp)
+void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp)
 {
 	switch(type) {
 	case ICMP_ECHOREPLY:
@@ -970,7 +976,7 @@ void pr_options(unsigned char * cp, int hlen)
 			cp++;
 			if (j > IPOPT_MINOFF) {
 				for (;;) {
-					u_int32_t address;
+					__u32 address;
 					memcpy(&address, cp, 4);
 					cp += 4;
 					if (address == 0)
@@ -1005,7 +1011,7 @@ void pr_options(unsigned char * cp, int hlen)
 			printf("\nRR: ");
 			cp++;
 			for (;;) {
-				u_int32_t address;
+				__u32 address;
 				memcpy(&address, cp, 4);
 				cp += 4;
 				if (address == 0)
@@ -1021,7 +1027,7 @@ void pr_options(unsigned char * cp, int hlen)
 		case IPOPT_TS:
 		{
 			int stdtime = 0, nonstdtime = 0;
-			uint8_t flags;
+			__u8 flags;
 			j = *++cp;		/* get length */
 			i = *++cp;		/* and pointer */
 			if (i > j)
@@ -1036,7 +1042,7 @@ void pr_options(unsigned char * cp, int hlen)
 				long l;
 
 				if ((flags&0xF) != IPOPT_TS_TSONLY) {
-					u_int32_t address;
+					__u32 address;
 					memcpy(&address, cp, 4);
 					cp += 4;
 					if (address == 0)
@@ -1114,7 +1120,7 @@ void pr_iph(struct iphdr *ip)
  * a hostname.
  */
 char *
-pr_addr(u_int32_t addr)
+pr_addr(__u32 addr)
 {
 	struct hostent *hp;
 	static char buf[4096];
@@ -1156,7 +1162,7 @@ int parsetos(char *str)
 	return(tos);
 }
 
-/*#include <linux/filter.h>*/
+#include <linux/filter.h>
 
 void install_filter(void)
 {
@@ -1181,11 +1187,12 @@ void install_filter(void)
 	once = 1;
 
 	/* Patch bpflet for current identifier. */
-	//insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, __constant_htons(ident), 0, 1);
-	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, htons(ident), 0, 1);
+	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, __constant_htons(ident), 0, 1);
+
 	if (setsockopt(icmp_sock, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
 		perror("WARNING: failed to install socket filter\n");
 }
+
 
 void usage(void)
 {

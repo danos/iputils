@@ -38,12 +38,21 @@ typedef unsigned int socklen_t;
 /* Types of sockets.  */
 enum __socket_type
 {
+#ifndef __mips__
   SOCK_STREAM = 1,		/* Sequenced, reliable, connection-based
 				   byte streams.  */
 #define SOCK_STREAM SOCK_STREAM
   SOCK_DGRAM = 2,		/* Connectionless, unreliable datagrams
 				   of fixed maximum length.  */
 #define SOCK_DGRAM SOCK_DGRAM
+#else
+  SOCK_STREAM = 2,		/* Sequenced, reliable, connection-based
+				   byte streams.  */
+#define SOCK_STREAM SOCK_STREAM
+  SOCK_DGRAM = 1,		/* Connectionless, unreliable datagrams
+				   of fixed maximum length.  */
+#define SOCK_DGRAM SOCK_DGRAM
+#endif
   SOCK_RAW = 3,			/* Raw protocol interface.  */
 #define SOCK_RAW SOCK_RAW
   SOCK_RDM = 4,			/* Reliably-delivered messages.  */

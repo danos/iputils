@@ -26,8 +26,7 @@ clean:
 	dh_testroot
 
 	-$(MAKE) clean
-	-$(MAKE) -C doc clean
-
+	rm -f include-glibc/bits/socket.h
 	dh_clean
 
 install: DH_OPTIONS=

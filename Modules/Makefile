@@ -9,4 +9,4 @@ CFLAGS=-DMODULE -D__KERNEL__ -I$(KERNEL_INCLUDE) $(CCOPT)
 all: pg3.o
 
 clean:
-	rm -f *.o
+	@rm -f *.o

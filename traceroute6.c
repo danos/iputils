@@ -246,8 +246,10 @@ char copyright[] =
 #include <netinet/ip_icmp.h>
 #include <netinet/udp.h>
 
-#include <netinet/icmp6.h>
-#include <netinet/ip6.h>
+#include <linux/ipv6.h>
+#include <linux/in6.h>
+
+#include <linux/icmpv6.h>
 
 #include <arpa/inet.h>
 
@@ -312,8 +314,8 @@ int nflag;			/* print addresses numerically */
 
 struct pkt_format
 {
-        u_int32_t ident;
-        u_int32_t seq;
+	__u32 ident;
+	__u32 seq;
 	struct timeval tv;
 };
 
@@ -324,7 +326,7 @@ int datalen = sizeof(struct pkt_format);
 
 int main(int argc, char *argv[])
 {
-	char pa[64];
+	char pa[MAXHOSTNAMELEN];
 	extern char *optarg;
 	extern int optind;
 	struct hostent *hp;
@@ -414,7 +416,7 @@ int main(int argc, char *argv[])
 
 	setlinebuf (stdout);
 
-	(void) bzero((char *)&whereto, sizeof(struct sockaddr_in6));
+	(void) bzero((char *)&whereto, sizeof(whereto));
 
 	to->sin6_family = AF_INET6;
 	to->sin6_port = htons(port);
@@ -424,7 +426,7 @@ int main(int argc, char *argv[])
 	} else {
 		hp = gethostbyname2(*argv, AF_INET6);
 		if (hp) {
-			memmove((caddr_t)&to->sin6_addr, hp->h_addr, 16);
+			memmove((caddr_t)&to->sin6_addr, hp->h_addr, sizeof(to->sin6_addr));
 			hostname = (char *)hp->h_name;
 		} else {
 			(void)fprintf(stderr,
@@ -433,8 +435,14 @@ int main(int argc, char *argv[])
 		}
 	}
 	firsthop = *to;
-	if (*++argv)
+	if (*++argv) {
 		datalen = atoi(*argv);
+		/* Message for rpm maintainers: have _shame_. If you want
+		 * to fix something send the patch to me for sanity checking.
+		 * "datalen" patch is a shit. */
+		if ((unsigned int)datalen == 0)
+			datalen = sizeof(struct pkt_format);
+	}
 
 	if (datalen < (int)sizeof(struct pkt_format) || datalen >= MAXPACKET) {
 		Fprintf(stderr,
@@ -463,6 +471,11 @@ int main(int argc, char *argv[])
 	if (options & SO_DONTROUTE)
 		setsockopt(icmp_sock, SOL_SOCKET, SO_DONTROUTE,
 			   (char *)&on, sizeof(on));
+	on = 2;
+	if (setsockopt(icmp_sock, SOL_RAW, IPV6_CHECKSUM, &on, sizeof(on)) < 0) {
+		perror("setsockopt(RAW_CHECKSUM)");
+		exit(2);
+	}
 
 	if ((sndsock = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
 		perror("traceroute: UDP socket");
@@ -508,7 +521,7 @@ int main(int argc, char *argv[])
 		saddr.sin6_port = 0;
 		close(probe_fd);
 	} else {
-		(void) bzero((char *)&saddr, sizeof(struct sockaddr_in6));
+		(void) bzero((char *)&saddr, sizeof(saddr));
 		saddr.sin6_family = AF_INET6;
 		if (inet_pton(AF_INET6, source, &saddr.sin6_addr) < 0)
 		{
@@ -527,10 +540,10 @@ int main(int argc, char *argv[])
 	}
 
 	Fprintf(stderr, "traceroute to %s (%s)", hostname,
-		inet_ntop(AF_INET6, &to->sin6_addr, pa, 64));
+		inet_ntop(AF_INET6, &to->sin6_addr, pa, sizeof(pa)));
 
 	Fprintf(stderr, " from %s",
-		inet_ntop(AF_INET6, &saddr.sin6_addr, pa, 64));
+		inet_ntop(AF_INET6, &saddr.sin6_addr, pa, sizeof(pa)));
 	Fprintf(stderr, ", %d hops max, %d byte packets\n", max_ttl, datalen);
 	(void) fflush(stderr);
 
@@ -551,30 +564,30 @@ int main(int argc, char *argv[])
 
 			while ((cc = wait_for_reply(icmp_sock, &from, reset_timer)) != 0) {
 				gettimeofday(&t2, &tz);
-				if ((i = packet_ok(packet, cc, &from, seq, &t1))) {
+				if (cc > 0 && (i = packet_ok(packet, cc, &from, seq, &t1))) {
 					reset_timer = 1;
-					if (memcmp(&from.sin6_addr, &lastaddr, sizeof(struct in6_addr))) {
+					if (memcmp(&from.sin6_addr, &lastaddr, sizeof(from.sin6_addr))) {
 						print(packet, cc, &from);
 						memcpy(&lastaddr,
 						       &from.sin6_addr,
-						       sizeof(struct in6_addr));
+						       sizeof(lastaddr));
 					}
 					Printf("  %g ms", deltaT(&t1, &t2));
 					switch(i - 1) {
-					case ICMP6_DST_UNREACH_NOPORT:
+					case ICMPV6_PORT_UNREACH:
 						++got_there;
 						break;
 
-					case ICMP6_DST_UNREACH_NOROUTE:
+					case ICMPV6_NOROUTE:
 						++unreachable;
 						Printf(" !N");
 						break;
-					case ICMP6_DST_UNREACH_ADDR:
+					case ICMPV6_ADDR_UNREACH:
 						++unreachable;
 						Printf(" !H");
 						break;
 
-					case ICMP6_DST_UNREACH_ADMIN:
+					case ICMPV6_ADM_PROHIBITED:
 						++unreachable;
 						Printf(" !S");
 						break;
@@ -583,14 +596,14 @@ int main(int argc, char *argv[])
 				} else
 					reset_timer = 0;
 			}
-			if (cc == 0)
+			if (cc <= 0)
 				Printf(" *");
 			(void) fflush(stdout);
 		}
 		putchar('\n');
 		if (got_there ||
-                    (unreachable > 0 && unreachable >= nprobes - 1))
-		    break;
+		    (unreachable > 0 && unreachable >= nprobes-1))
+			exit(0);
 	}
 
 	return 0;
@@ -627,9 +640,8 @@ wait_for_reply(sock, from, reset_timer)
 	}
 
 	if (select(sock+1, &fds, (fd_set *)0, (fd_set *)0, &wait) > 0) {
-		cc=recvfrom(icmp_sock, (unsigned char *)packet, sizeof(packet), 0,
+		cc=recvfrom(icmp_sock, (char *)packet, sizeof(packet), 0,
 			    (struct sockaddr *)from, &fromlen);
-
 	}
 
 	return(cc);
@@ -645,7 +657,7 @@ void send_probe(int seq, int ttl)
 	pkt->seq = htonl(seq);
 	gettimeofday(&pkt->tv, &tz);
 
-	i = setsockopt(sndsock, SOL_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(int));
+	i = setsockopt(sndsock, SOL_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl));
 	if (i < 0)
 	{
 		perror("setsockopt");
@@ -654,7 +666,7 @@ void send_probe(int seq, int ttl)
 
 	do {
 		i = sendto(sndsock, sendbuff, datalen, 0,
-			   (struct sockaddr *)&whereto, sizeof(struct sockaddr_in6));
+			   (struct sockaddr *)&whereto, sizeof(whereto));
 	} while (i<0 && errno == ECONNREFUSED);
 
 	if (i < 0 || i != datalen)  {
@@ -715,25 +727,24 @@ char * pr_type(unsigned char t)
 int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
 	      struct timeval *tv)
 {
-	struct icmp6_hdr *icp;
-	uint8_t type, code;
+	struct icmp6hdr *icp;
+	u_char type, code;
 
-	icp = (struct icmp6_hdr *) buf;
+	icp = (struct icmp6hdr *) buf;
 
 	type = icp->icmp6_type;
 	code = icp->icmp6_code;
 
-	if ((type == ICMP6_TIME_EXCEEDED && code == ICMP6_TIME_EXCEED_TRANSIT)
-	    || type == ICMP6_DST_UNREACH)
+	if ((type == ICMPV6_TIME_EXCEED && code == ICMPV6_EXC_HOPLIMIT) ||
+	    type == ICMPV6_DEST_UNREACH)
 	{
-		struct ip6_hdr *hip;
+		struct ipv6hdr *hip;
 		struct udphdr *up;
-		uint8_t nexthdr;
+		int nexthdr;
 
-  		hip = (struct ip6_hdr *) (icp + 1); 
-  		up = (struct udphdr *)(hip+1);
-
-		nexthdr = hip->ip6_ctlun.ip6_un1.ip6_un1_nxt;
+		hip = (struct ipv6hdr *) (icp + 1);
+		up = (struct udphdr *)(hip+1);
+		nexthdr = hip->nexthdr;
 
 		if (nexthdr == 44) {
 			nexthdr = *(unsigned char*)up;
@@ -749,29 +760,29 @@ int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
 			    ntohl(pkt->seq) == seq)
 			{
 				*tv = pkt->tv;
-				return (type == ICMP6_TIME_EXCEEDED? -1 : code+1);
+				return (type == ICMPV6_TIME_EXCEED? -1 : code+1);
 			}
 		}
 
 	}
 
 	if (verbose) {
-		struct ip6_hdr *hip;
-		u_int32_t *lp;
-		char pa1[64];
-		char pa2[64];
+		struct ipv6hdr *hip;
+		__u32 *lp;
+		char pa1[MAXHOSTNAMELEN];
+		char pa2[MAXHOSTNAMELEN];
 		int i;
-		hip = (struct ip6_hdr *) (icp + 1);
-		lp = (u_int32_t *) (icp + 1);
+		hip = (struct ipv6hdr *) (icp + 1);
+		lp = (__u32 *) (icp + 1);
 
 		Printf("\n%d bytes from %s to %s", cc,
-		       inet_ntop(AF_INET6, &hip->ip6_src, pa1, 64),
-		       inet_ntop(AF_INET6, &hip->ip6_dst, pa2, 64));
+		       inet_ntop(AF_INET6, &hip->saddr, pa1, sizeof(pa1)),
+		       inet_ntop(AF_INET6, &hip->daddr, pa2, sizeof(pa2)));
 		
 		Printf(": icmp type %d (%s) code %d\n", type, pr_type(type),
 		       icp->icmp6_code);
 
-		for (i = sizeof(struct ip6_hdr); i < cc ; i += 4)
+		for (i = sizeof(struct ipv6hdr); i < cc ; i += 4)
 			Printf("%2d: x%8.8x\n", i, *lp++);
 	}
 
@@ -781,20 +792,20 @@ int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
 
 void print(unsigned char *buf, int cc, struct sockaddr_in6 *from)
 {
-	char pa[64];
+	char pa[MAXHOSTNAMELEN];
 
 	if (nflag)
 		Printf(" %s", inet_ntop(AF_INET6, &from->sin6_addr,
-					pa, 64));
+					pa, sizeof(pa)));
 	else
 	{
 		const char *hostname;
 		struct hostent *hp;
 		
-		hostname = inet_ntop(AF_INET6, &from->sin6_addr, pa, 64);
+		hostname = inet_ntop(AF_INET6, &from->sin6_addr, pa, sizeof(pa));
 
 		if ((hp = gethostbyaddr((char *)&from->sin6_addr,
-					sizeof(struct in6_addr), AF_INET6)))
+					sizeof(from->sin6_addr), AF_INET6)))
 			hostname = hp->h_name;
 		
 		Printf(" %s (%s)", hostname, pa);

@@ -3,13 +3,12 @@
 #include <sched.h>
 
 int options;
-int moptions;
 
 int sndbuf;
-int ttl, loop;
+int ttl;
 int rtt;
 int rtt_addend;
-u_int16_t acked;
+__u16 acked;
 
 int mx_dup_ck = MAX_DUP_CHK;
 char rcvd_tbl[MAX_DUP_CHK / 8];
@@ -25,6 +24,7 @@ long nerrors;			/* icmp errors */
 int interval = 1000;		/* interval between packets (msec) */
 int preload;
 int deadline = 0;		/* time to die */
+int lingertime = MAXWAIT*1000;
 struct timeval start_time, cur_time;
 volatile int exiting;
 volatile int status_snapshot;
@@ -42,6 +42,11 @@ int working_recverr;
 int timing;			/* flag to do timing */
 long tmin = LONG_MAX;		/* minimum round trip time */
 long tmax;			/* maximum round trip time */
+/* Message for rpm maintainers: have _shame_. If you want
+ * to fix something send the patch to me for sanity checking.
+ * "sparcfix" patch is a complete non-sense, apparenly the person
+ * prepared it was stoned.
+ */
 long long tsum;			/* sum of all times, for doing average */
 long long tsum2;
 int  pipesize = -1;
@@ -145,11 +150,13 @@ void common_options(int ch)
 		break;
 	case 'l':
 		preload = atoi(optarg);
-		if (preload <= 0 || preload>mx_dup_ck) {
+		if (preload <= 0) {
 			fprintf(stderr, "ping: bad preload value, should be 1..%d\n", mx_dup_ck);
 			exit(2);
 		}
-		if (uid && preload>3) {
+		if (preload > mx_dup_ck)
+			preload = mx_dup_ck;
+		if (uid && preload > 3) {
 			fprintf(stderr, "ping: cannot set preload to value > 3\n");
 			exit(2);
 		}
@@ -185,11 +192,10 @@ void common_options(int ch)
 		options |= F_VERBOSE;
 		break;
 	case 'L':
-		moptions |= MULTICAST_NOLOOP;
-		loop = 0;
+		options |= F_NOLOOP;
 		break;
 	case 't':
-		moptions |= MULTICAST_TTL;
+		options |= F_TTL;
 		ttl = atoi(optarg);
 		if (ttl < 0 || ttl > 255) {
 			fprintf(stderr, "ping: ttl %u out of range\n", ttl);
@@ -198,6 +204,17 @@ void common_options(int ch)
 		break;
 	case 'U':
 		options |= F_LATENCY;
+		break;
+	case 'B':
+		options |= F_STRICTSOURCE;
+		break;
+	case 'W':
+		lingertime = atoi(optarg);
+		if (lingertime < 0 || lingertime > INT_MAX/1000000) {
+			fprintf(stderr, "ping: bad linger time.\n");
+			exit(2);
+		}
+		lingertime *= 1000;
 		break;
 	case 'V':
 		printf("ping utility, iputils-ss%s\n", SNAPSHOT);
@@ -221,17 +238,20 @@ static void sigstatus(int signo)
 
 int __schedule_exit(int next)
 {
-	unsigned long waittime;
+	static unsigned long waittime;
 	struct itimerval it;
+
+	if (waittime)
+		return next;
 
 	if (nreceived) {
 		waittime = 2 * tmax;
-		if (waittime<1000000)
-			waittime = 1000000;
+		if (waittime < 1000*interval)
+			waittime = 1000*interval;
 	} else
-		waittime = MAXWAIT*1000000;
+		waittime = lingertime*1000;
 
-	if (next<0 || next < waittime/1000)
+	if (next < 0 || next < waittime/1000)
 		next = waittime/1000;
 
 	it.it_interval.tv_sec = 0;
@@ -261,6 +281,7 @@ static inline void update_interval(void)
  */
 int pinger(void)
 {
+	static int oom_count;
 	static int tokens;
 	int i;
 
@@ -299,6 +320,7 @@ resend:
 	i = send_probe();
 
 	if (i == 0) {
+		oom_count = 0;
 		advance_ntransmitted();
 		if (!(options & F_QUIET) && (options & F_FLOOD)) {
 			/* Very silly, but without this output with
@@ -315,13 +337,25 @@ resend:
 		/* Apparently, it is some fatal bug. */
 		abort();
 	} else if (errno == ENOBUFS || errno == ENOMEM) {
+		int nores_interval;
+
 		/* Device queue overflow or OOM. Packet is not sent. */
 		tokens = 0;
 		/* Slowdown. This works only in adaptive mode (option -A) */
 		rtt_addend += (rtt < 8*50000 ? rtt/8 : 50000);
 		if (options&F_ADAPTIVE)
 			update_interval();
-		return SCHINT(interval);
+		nores_interval = SCHINT(interval/2);
+		if (nores_interval > 500)
+			nores_interval = 500;
+		oom_count++;
+		if (oom_count*nores_interval < lingertime)
+			return nores_interval;
+		i = 0;
+		/* Fall to hard error. It is to avoid complete deadlock
+		 * on stuck output device even when dealine was not requested.
+		 * Expected timings are screwed up in any case, but we will
+		 * exit some day. :-) */
 	} else if (errno == EAGAIN) {
 		/* Socket buffer is full. */
 		tokens += interval;
@@ -339,22 +373,22 @@ resend:
 		}
 		if (!errno)
 			goto resend;
-
-		/* Hard local error. Pretend we sent packet. */
-		advance_ntransmitted();
-
-		if (i == 0 && !(options & F_QUIET)) {
-			if (options & F_FLOOD)
-				write(STDOUT_FILENO, "E", 1);
-			else
-				perror("ping: sendmsg");
-		}
-		tokens = 0;
-		return SCHINT(interval);
 	}
+
+	/* Hard local error. Pretend we sent packet. */
+	advance_ntransmitted();
+
+	if (i == 0 && !(options & F_QUIET)) {
+		if (options & F_FLOOD)
+			write(STDOUT_FILENO, "E", 1);
+		else
+			perror("ping: sendmsg");
+	}
+	tokens = 0;
+	return SCHINT(interval);
 }
 
-/* Set socket buffers, "alloc" is an esimate of memory taken by single packet. */
+/* Set socket buffers, "alloc" is an estimate of memory taken by single packet. */
 
 void sock_setbufs(int icmp_sock, int alloc)
 {
@@ -401,13 +435,7 @@ void setup(int icmp_sock)
 	if (options & F_SO_DONTROUTE)
 		setsockopt(icmp_sock, SOL_SOCKET, SO_DONTROUTE, (char *)&hold, sizeof(hold));
 
-	/* Added by noahm for Debian since times are completely 
-	   mis-reported on SPARC without F_LATENCY set
-	*/
-#ifdef __sparc__
-	options |= F_LATENCY;
-#endif /* sparc */
-
+#ifndef __sparc__ /* XXX SO_TIMESTAMP seems broken on sparc */
 #ifdef SO_TIMESTAMP
 	if (!(options&F_LATENCY)) {
 		int on = 1;
@@ -415,6 +443,7 @@ void setup(int icmp_sock)
 			fprintf(stderr, "Warning: no SO_TIMESTAMP support, falling back to SIOCGSTAMP\n");
 	}
 #endif
+#endif /* __sparc__ */
 
 	/* Set some SNDTIMEO to prevent blocking forever
 	 * on sends, when device is too slow or stalls. Just put limit
@@ -474,7 +503,7 @@ void setup(int icmp_sock)
 	}
 }
 
-void main_loop(int icmp_sock, uint8_t *packet, int packlen)
+void main_loop(int icmp_sock, __u8 *packet, int packlen)
 {
 	char addrbuf[128];
 	char ans_data[4096];
@@ -491,7 +520,7 @@ void main_loop(int icmp_sock, uint8_t *packet, int packlen)
 		/* Check exit conditions. */
 		if (exiting)
 			break;
-		if (npackets && nreceived >= npackets)
+		if (npackets && nreceived + nerrors >= npackets)
 			break;
 		if (deadline && nerrors)
 			break;
@@ -600,11 +629,9 @@ void main_loop(int icmp_sock, uint8_t *packet, int packlen)
 				not_ours = parse_reply(&msg, cc, addrbuf, recv_timep);
 			}
 
-#if 0
 			/* See? ... someone runs another ping on this host. */ 
 			if (not_ours)
 				install_filter();
-#endif /* 0 */
 
 			/* If nothing is in flight, "break" returns us to pinger. */
 			if (in_flight() == 0)
@@ -619,11 +646,11 @@ void main_loop(int icmp_sock, uint8_t *packet, int packlen)
 	finish();
 }
 
-int gather_statistics(uint8_t *ptr, int cc, u_int16_t seq, int hops,
+int gather_statistics(__u8 *ptr, int cc, __u16 seq, int hops,
 		      int csfailed, struct timeval *tv, char *from)
 {
 	int dupflag = 0;
-	time_t triptime = 0;
+	long triptime = 0;
 
 	++nreceived;
 	if (!csfailed)
@@ -684,7 +711,7 @@ restamp:
 			write(STDOUT_FILENO, "\bC", 1);
 	} else {
 		int i;
-		uint8_t *cp, *dp;
+		__u8 *cp, *dp;
 		printf("%d bytes from %s: icmp_seq=%u", cc, from, seq);
 
 		if (hops >= 0)
@@ -769,7 +796,7 @@ void finish(void)
 	if (nerrors)
 		printf(", +%ld errors", nerrors);
 	if (ntransmitted) {
-		printf(", %d%% loss",
+		printf(", %d%% packet loss",
 		       (int) ((((long long)(ntransmitted - nreceived)) * 100) /
 			      ntransmitted));
 		printf(", time %ldms", 1000*tv.tv_sec+tv.tv_usec/1000);
@@ -798,7 +825,7 @@ void finish(void)
 		       ipg/1000, ipg%1000, rtt/8000, (rtt/8)%1000);
 	}
 	putchar('\n');
-	exit(deadline ? nreceived<npackets : nreceived==0);
+	exit(!nreceived || (deadline && nreceived < npackets));
 }
 
 
@@ -826,4 +853,3 @@ void status(void)
 	}
 	fprintf(stderr, "\n");
 }
-
