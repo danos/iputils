@@ -11,13 +11,12 @@ Provides: ping
 Conflicts: ping, suidmanager (<< 0.50)
 Depends: ${shlibs:Depends}
 Replaces: netbase (<< 4.00)
-Description: The ping utility from iputils
+Description: Tools to test the reachability of network hosts
  The ping command sends ICMP ECHO_REQUEST packets to a host in order to
  test if the host is reachable via the network.
  .
  This package includes a ping6 utility which supports IPv6 network
- connections.  Aside from that, it is essentially functionally identical
- to the netkit-ping package.
+ connections.
  
 Package: iputils-tracepath
 Architecture: any
@@ -25,7 +24,7 @@ Suggests: traceroute
 Depends: ${shlibs:Depends}
 Conflicts: suidmanager (<< 0.50)
 Replaces: netbase (<< 4.00)
-Description: The tracepath utility from iputils
+Description: Tools to trace the network path to a remote host
  The tracepath utility is similar to the traceroute utility, but also
  attempts to discover the MTU of the path.
  .
@@ -37,7 +36,7 @@ Architecture: any
 Depends: ${shlibs:Depends}
 Conflicts: suidmanager (<< 0.50), arping, iputils-ping (<<20001110-6)
 Replaces: netbase (<< 4.00)
-Description: Send ICMP echo requests to an ARP address
+Description: Tool to send ICMP echo requests to an ARP address
  The arping command acts like the standard ping command except it pings
  a machine by its ARP address instead of its IP address.  It is typically
  used to locate a machine if its hardware address is known but its IP
