@@ -3,11 +3,12 @@ Section: net
 Priority: extra
 Maintainer: Noah Meyerhans <noahm@debian.org>
 Standards-Version: 3.5.4.0
-Build-Depends: debhelper (>> 2), sp, sgmlspl, docbook
+Build-Depends: debhelper (>> 2), sp, sgmlspl, docbook, libpcap-dev
 
 Package: iputils-ping
 Architecture: any
 Provides: ping
+Priority: important
 Conflicts: ping, suidmanager (<< 0.50)
 Depends: ${shlibs:Depends}
 Replaces: netbase (<< 4.00)
