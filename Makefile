@@ -64,6 +64,7 @@ html:
 
 clean:
 	rm -f *.o $(TARGETS)
+	rm -f include-glibc/bits/socket.h
 	$(MAKE) -C Modules clean
 	$(MAKE) -C doc clean
 
