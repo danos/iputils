@@ -1,0 +1,38 @@
+Source: iputils
+Section: net
+Priority: extra
+Maintainer: Noah Meyerhans <frodo@morgul.net>
+Standards-Version: 3.1.1
+Build-Depends: debhelper (>> 2)
+
+Package: iputils-ping
+Architecture: any
+Provides: ping
+Conflicts: ping, suidmanager (<< 0.50)
+Depends: ${shlibs:Depends}
+Replaces: netbase (<< 4.00)
+Description: The ping utility from iputils
+ The ping command sends ICMP ECHO_REQUEST packets to a host in order to
+ test if the host is reachable via the network.
+ .
+ This package includes a ping6 utility which supports IPv6 network
+ connections.
+ .
+ If you don't know why you might need this package, you probably don't
+ need it. Use netkit-ping instead.
+ 
+Package: iputils-tracepath
+Architecture: any
+Suggests: traceroute
+Depends: ${shlibs:Depends}
+Conflicts: suidmanager (<< 0.50)
+Replaces: netbase (<< 4.00)
+Description: The tracepath utility from iputils
+ The tracepath utility is similar to the traceroute utility, but also
+ attempts to discover the MTU of the path.
+ .
+ This package also includes tracepath6 and traceroute6 utilities, which
+ may be used on IPv6 networks.
+ .
+ If you don't know why you might need this package, you probably don't
+ need it.

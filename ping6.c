@@ -88,6 +88,10 @@ char copyright[] =
 #include <linux/ipv6.h>
 #include <linux/icmpv6.h>
 
+#define clear_bit(n,addr)  (*(addr) &= ~(1 << (n)))
+#define set_bit(n,addr)    (*(addr) |= (1 << (n)))
+#define test_bit(n,addr)   (*(addr) & (1 << (n)))
+
 #define ICMPV6_FILTER_WILLPASS(type, filterp) \
 	(test_bit(type, filterp) == 0)
 

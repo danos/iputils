@@ -30,29 +30,30 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)ping.8	6.7 (Berkeley) 3/16/91
-.\"	$Id: ping.8,v 1.4 1997/02/01 23:08:04 dholland Exp $
+.\"	$Id$
 .\"
 .Dd February 7, 2001
-.Dt PING 8
-.Os "Iputils Ping"
+.Dt PING6 8
+.Os "Iputils Ping6"
 .Sh NAME
-.Nm ping
+.Nm ping6
 .Nd send
 .Tn ICMP ECHO_REQUEST
 packets to network hosts
 .Sh SYNOPSIS
-.Nm ping
+.Nm ping6
 .Op Fl dfnqrvR
 .Op Fl c Ar count
 .Op Fl i Ar wait
 .Op Fl l Ar preload
 .Op Fl p Ar pattern
 .Op Fl s Ar packetsize
-.Op Fl T Ar option
 .Op Fl I Ar device
+.Op Fl P Ar trafficclass
+.Op Fl F Ar flowlabel
 .Op Fl w Ar timeout
 .Sh DESCRIPTION
-.Nm Ping
+.Nm Ping6
 uses the
 .Tn ICMP
 protocol's mandatory
@@ -158,12 +159,10 @@ packets other than
 that are received are listed.
 .It Fl I Ar device
 Specifies the output interface.
-.It Fl T Ar option
-Send timestamp IP option.
-
-tsonly -- only timestamps
-
-tsandaddr -- timestamps & addresses
+.It Fl P Ar <traffic class>
+Sets traffic class bits.
+.It Fl F Ar <flow label>
+Sets flow label.  -F 0 generates random label.
 .It Fl w Ar TIMEOUT
 Exit after 
 .Tn TIMEOUT.
@@ -344,7 +343,7 @@ broadcast address should only be done under very controlled conditions.
 .Sh NOTES
 This man page was copied almost verbatim from the netkit ping man page.
 .Sh SEE ALSO
-.Xr ping6 8 ,
+.Xr ping 8 ,
 .Xr netstat 1 ,
 .Xr ifconfig 8 ,
 .Xr routed 8
