@@ -626,8 +626,6 @@ wait_for_reply(sock, from, reset_timer)
 	}
 
 	if (select(sock+1, &fds, (fd_set *)0, (fd_set *)0, &wait) > 0) {
-		char foo[20];
-		size_t foo_size;
 		cc=recvfrom(icmp_sock, (unsigned char *)packet, sizeof(packet), 0,
 			    (struct sockaddr *)from, &fromlen);
 
