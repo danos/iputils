@@ -1,3 +1,11 @@
+iputils (3:20020124-1) unstable; urgency=low
+
+  * New upstream release. (Closes: Bug#119651, Bug#120166)
+  * Improved the build process.  Uses new debhelper scripts.
+  * Added new build deps for manpage auto-generation from SGML source.
+
+ -- Noah Meyerhans <noahm@debian.org>  Tue, 29 Jan 2002 16:32:58 -0500
+
 iputils (3:0ss010824-1) unstable; urgency=low
 
   * New upstream release (Closes: Bug#113306)

@@ -1,10 +1,4 @@
 #!/usr/bin/make -f
-# Sample debian/rules that uses debhelper. 
-# GNU copyright 1997 by Joey Hess.
-#
-# This version is for a hypothetical package that builds an
-# architecture-dependant package, as well as an architecture-independent
-# package.
 
 # Uncomment this to turn on verbose mode. 
 #export DH_VERBOSE=1
@@ -15,6 +9,8 @@ export DH_COMPAT=1
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
 
+export BASEDIR=debian/tmp
+
 configure:
 	dh_testdir
 
@@ -22,12 +18,14 @@ build: configure
 	dh_testdir
 
 	$(MAKE)
+	$(MAKE) -C doc man
 
 clean:
 	dh_testdir
 	dh_testroot
 
 	-$(MAKE) clean
+	-$(MAKE) -C doc clean
 
 	dh_clean
 
@@ -38,7 +36,12 @@ install: build
 	dh_clean -k
 	dh_installdirs 
 
-	$(MAKE) install BASEDIR=`pwd`/debian/tmp
+	install -m 4755 -o root -g root ping $(BASEDIR)/bin/
+	install -m 4755 -o root -g root ping6 $(BASEDIR)/bin/
+	install -m 4755 -o root -g root traceroute6 $(BASEDIR)/usr/sbin
+	install -m 0755 -o root -g root tracepath $(BASEDIR)/usr/sbin/
+	install -m 0755 -o root -g root tracepath6 $(BASEDIR)/usr/sbin/
+	install -m 0755 -o root -g root arping $(BASEDIR)/usr/sbin/
 
 	dh_movefiles -p iputils-tracepath usr/sbin/trace{path,path6,route6} 
 	dh_movefiles -p iputils-arping usr/sbin/arping
@@ -72,9 +75,9 @@ binary-arch: build install
 	dh_installexamples
 	dh_installmenu
 	dh_installcron
-	dh_installmanpages -piputils-tracepath ping6.8 ping.8 arping.8 clockdiff.8 in.rdisc.8c
-	dh_installmanpages -piputils-ping tracepath.8 tracepath6.8 clockdiff.8 in.rdisc.8c traceroute6.8 arping.8
-	dh_installmanpages -piputils-arping ping6.8 ping.8 clockdiff.8 in.rdisc.8c tracepath.8 tracepath6.8 traceroute6.8
+	dh_installman -piputils-ping
+	dh_installman -piputils-tracepath
+	dh_installman -piputils-arping
 	dh_installchangelogs 
 	dh_strip
 	dh_link

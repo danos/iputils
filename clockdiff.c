@@ -96,8 +96,6 @@ int interactive = 0;
 int id;
 int sock;
 int sock_raw;
-char hostname[MAXHOSTNAMELEN];
-char serverhost[MAXHOSTNAMELEN];
 struct sockaddr_in server;
 int ip_opt_len = 0;
 
@@ -538,6 +536,7 @@ main(int argc, char *argv[])
 {
 	int measure_status;
 	struct hostent * hp;
+	char hostname[MAXHOSTNAMELEN];
 	int s_errno = 0;
 
 	if (argc < 2) {
@@ -580,9 +579,6 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 	myname = strdup(hp->h_name);
-
-
-	strcpy(serverhost, argv[1]);
 
 	hp = gethostbyname(argv[1]);
 	if (hp == NULL) {

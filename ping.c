@@ -260,7 +260,7 @@ main(int argc, char **argv)
 			struct ifreq ifr;
 			memset(&ifr, 0, sizeof(ifr));
 			strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
-			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr)) == -1) {
+			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
 				if (IN_MULTICAST(ntohl(dst.sin_addr.s_addr))) {
 					struct ip_mreqn imr;
 					if (ioctl(probe_fd, SIOCGIFINDEX, &ifr) < 0) {
@@ -722,10 +722,14 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 						return 0;
 					} else {
 						static int once;
-						if (!once) {
-							fprintf(stderr, "\rWARNING: kernel is not very fresh, upgrade is recommended.\n");
-							once = 1;
-						}
+						/* Sigh, IP_RECVERR for raw socket
+						 * was broken until 2.4.9. So, we ignore
+						 * the first error and warn on the second.
+						 */
+						if (once++ == 1)
+							 fprintf(stderr, "\rWARNING: kernel is not very fresh, upgrade is recommended.\n");
+						if (once == 1)
+							return 0;
 					}
 				}
 				nerrors+=error_pkt;

@@ -72,9 +72,9 @@ char copyright[] =
 #include <linux/ipv6.h>
 #include <linux/icmpv6.h>
 
-#define BIT_CLEAR(nr, addr) do { ((unsigned char *)(addr))[(nr) >> 3] &= ~(1U << ((nr) & 7)); } while(0)
-#define BIT_SET(nr, addr) do { ((unsigned char *)(addr))[(nr) >> 3] |= (1U << ((nr) & 7)); } while(0)
-#define BIT_TEST(nr, addr) do { ((unsigned char *)(addr))[(nr) >> 3] & (1U << ((nr) & 7)); } while(0)
+#define BIT_CLEAR(nr, addr) do { ((__u32 *)(addr))[(nr) >> 5] &= ~(1U << ((nr) & 31)); } while(0)
+#define BIT_SET(nr, addr) do { ((__u32 *)(addr))[(nr) >> 5] |= (1U << ((nr) & 31)); } while(0)
+#define BIT_TEST(nr, addr) do { (__u32 *)(addr))[(nr) >> 5] & (1U << ((nr) & 31)); } while(0)
 
 #define clear_bit(n,addr)  (*(addr) &= ~(1 << (n)))
 #define set_bit(n,addr)    (*(addr) |= (1 << (n)))
@@ -87,10 +87,10 @@ char copyright[] =
 	BIT_TEST((type), filterp)
 
 #define ICMPV6_FILTER_SETPASS(type, filterp) \
-	BIT_CLEAR((type) & 0x1f, &((filterp)->data[type >> 5]))
+	BIT_CLEAR((type), filterp)
 
 #define ICMPV6_FILTER_SETBLOCK(type, filterp) \
-	BIT_SET((type) & 0x1f, &((filterp)->data[type >> 5]))
+	BIT_SET((type), filterp)
 
 #define ICMPV6_FILTER_SETPASSALL(filterp) \
 	memset(filterp, 0, sizeof(struct icmp6_filter));
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 			struct ifreq ifr;
 			memset(&ifr, 0, sizeof(ifr));
 			strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
-			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr)) == -1) {
+			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
 #ifdef HAVE_SIN6_SCOPEID
 				if ((firsthop.sin6_addr.s6_addr16[0]&htons(0xffc0)) == htons (0xfe80) ||
 				    (firsthop.sin6_addr.s6_addr16[0]&htons(0xffff)) == htons (0xff02)) {

@@ -1,3 +1,33 @@
+[020124]
+* Michal Kochanowicz <michal@michal.waw.pl> typos in tracepath.8
+* Michael Wardle <michael.wardle@adacel.com>: undo silly change of ss000305
+  (printing rtt in some funny units). Michael noticed that "sec" is not
+  standard abbreviation for time units (bullshit, of course), but real concern
+  is that it is more difficult to interpret with a neglibible improvement
+  to appearance. So, do this as expected: in "ms".
+* Documentation. Wow! I did it. man pages are disassembled to docbook,
+  audited wrt real state, edited... and promised to be maintained
+  in sync with the state of utilities.
+
+[011202]
+* Utz Bacher <utz.bacher@de.ibm.com> Bitops in ping6 were wrong
+  on bigendian machines. Wow, luckily I forgot to acknowledge that patch
+  of 010805 which has gotten rid of kernel bitops and did this so wrongly.
+* Michael Bakunin <bakunin@maphiasoft.org> (:-))
+  found mud in tftpd.c, it will crash when directory supplied in argument
+  is longer ~512 symbols.
+* Alexandr D. Kanevskiy <kad@blackcatlinux.com>: buffer overflow
+  in clockdiff. Very stupid one, the overflowed buffer even was not used. :-)
+* Alexandr D. Kanevskiy <kad@blackcatlinux.com>: shit! Code recognizing
+  kernels with broken IP_RECVERR for raw sockets depended on race
+  and accused even good kernel of being buggy. :-)
+
+[011002]
+* Stepan Koltsov <yozh@mx1.ru>, tracepath/tracepth6 segfaulted when
+  used without address.
+* Alexandr D. Kanevskiy <kad@blackcatlinux.com>: arping printed
+  "permission denied" instead of showing help page to non-superuser.
+
 [010824]
 * Alexandr D. Kanevskiy <kad@blackcatlinux.com>: ping compiled
   for linux-2.4 forgot to send the second packet, when used with linux-2.2

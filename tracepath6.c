@@ -265,6 +265,15 @@ restart:
 	return 0;
 }
 
+static void usage(void) __attribute((noreturn));
+
+static void usage(void)
+{
+	fprintf(stderr, "Usage: tracepath6 [-n] [-b] <destination>[/<port>]\n");
+	exit(-1);
+}
+
+
 int main(int argc, char **argv)
 {
 	int fd;
@@ -273,11 +282,27 @@ int main(int argc, char **argv)
 	int ttl;
 	char *p;
 	struct hostent *he;
+	int ch;
 
-	if (argc < 2) {
-		fprintf(stderr, "tracepath6 [-n] [-b] <address>[/<port>]\n");
-		exit(-1);
+	while ((ch = getopt(argc, argv, "nbh?")) != EOF) {
+		switch(ch) {
+		case 'n':	
+			no_resolve = 1;
+			break;
+		case 'b':	
+			show_both = 1;
+			break;
+		default:
+			usage();
+		}
 	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1)
+		usage();
+
 
 	fd = socket(AF_INET6, SOCK_DGRAM, 0);
 	if (fd < 0) {
@@ -285,21 +310,14 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	sin.sin6_family = AF_INET6;
-	if (!strcmp(argv[1], "-n")) {
-		no_resolve = 1;
-		argv++; argc--;
-	}
-	if (!strcmp(argv[1], "-b")) {
-		show_both = 1;
-		argv++; argc--;
-	}
-	p = strchr(argv[1], '/');
+
+	p = strchr(argv[0], '/');
 	if (p) {
 		*p = 0;
 		sin.sin6_port = htons(atoi(p+1));
 	} else
 		sin.sin6_port = htons(0x8000 | getpid());
-	he = gethostbyname2(argv[1], AF_INET6);
+	he = gethostbyname2(argv[0], AF_INET6);
 	if (he == NULL) {
 		herror("gethostbyname2");
 		exit(1);

@@ -628,7 +628,7 @@ restamp:
 		tvsub(tv, &tmp_tv);
 		triptime = tv->tv_sec * 1000000 + tv->tv_usec;
 		if (triptime < 0) {
-			fprintf(stderr, "Warning: time of day goes back, taking countermeasures.\n");
+			fprintf(stderr, "Warning: time of day goes back (%ldus), taking countermeasures.\n", triptime);
 			triptime = 0;
 			if (!(options & F_LATENCY)) {
 				gettimeofday(tv, NULL);
@@ -686,15 +686,17 @@ restamp:
 			return 1;
 		}
 		if (timing) {
-			if (triptime >= 1000000) {
-				printf(" time=%ld.%03ld sec", triptime/1000000,
-				       (triptime%1000000)/1000);
-			} else if (triptime >= 1000) {
-				printf(" time=%ld.%03ld msec", triptime/1000,
+			if (triptime >= 100000)
+				printf(" time=%ld ms", triptime/1000);
+			else if (triptime >= 10000)
+				printf(" time=%ld.%01ld ms", triptime/1000,
+				       (triptime%1000)/100);
+			else if (triptime >= 1000)
+				printf(" time=%ld.%02ld ms", triptime/1000,
+				       (triptime%1000)/10);
+			else
+				printf(" time=%ld.%03ld ms", triptime/1000,
 				       triptime%1000);
-			} else {
-				printf(" time=%ld usec", triptime);
-			}
 		}
 		if (dupflag)
 			printf(" (DUP!)");
@@ -783,7 +785,7 @@ void finish(void)
 		printf(", pipe %d", pipesize);
 	if (ntransmitted > 1 && (!interval || (options&(F_FLOOD|F_ADAPTIVE)))) {
 		int ipg = (1000000*(long long)tv.tv_sec+tv.tv_usec)/(ntransmitted-1);
-		printf(", ipg/ewma %d.%03d/%d.%03dms",
+		printf(", ipg/ewma %d.%03d/%d.%03d ms",
 		       ipg/1000, ipg%1000, rtt/8000, (rtt/8)%1000);
 	}
 	putchar('\n');

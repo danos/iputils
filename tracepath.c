@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <linux/errqueue.h>
 #include <errno.h>
@@ -259,6 +260,14 @@ restart:
 	return 0;
 }
 
+static void usage(void) __attribute((noreturn));
+
+static void usage(void)
+{
+	fprintf(stderr, "Usage: tracepath [-n] <destination>[/<port>]\n");
+	exit(-1);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -267,11 +276,23 @@ main(int argc, char **argv)
 	int on;
 	int ttl;
 	char *p;
+	int ch;
 
-	if (argc < 2) {
-		fprintf(stderr, "tracepath [-n] <destination>[/<port>]\n");
-		exit(-1);
+	while ((ch = getopt(argc, argv, "nh?")) != EOF) {
+		switch(ch) {
+		case 'n':	
+			no_resolve = 1;
+			break;
+		default:	
+		}
 	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1)
+		usage();
+
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (fd < 0) {
@@ -279,17 +300,14 @@ main(int argc, char **argv)
 		exit(1);
 	}
 	target.sin_family = AF_INET;
-	if (!strcmp(argv[1], "-n")) {
-		no_resolve = 1;
-		argv++; argc--;
-	}
-	p = strchr(argv[1], '/');
+
+	p = strchr(argv[0], '/');
 	if (p) {
 		*p = 0;
 		base_port = atoi(p+1);
 	} else
 		base_port = 44444;
-	he = gethostbyname(argv[1]);
+	he = gethostbyname(argv[0]);
 	if (he == NULL) {
 		herror("gethostbyname");
 		exit(1);

@@ -494,10 +494,7 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 		if (device) {
-			struct ifreq ifr;
-			memset(&ifr, 0, sizeof(ifr));
-			strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
-			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr)) == -1)
+			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1)
 				perror("WARNING: interface is ignored");
 		}
 		firsthop.sin6_port = htons(1025);

@@ -297,17 +297,16 @@ int recv_pack(unsigned char *buf, int len, struct sockaddr_ll *FROM)
 int
 main(int argc, char **argv)
 {
+	int socket_errno;
 	int ch;
 	uid_t uid = getuid();
 
-	if ((s = socket(PF_PACKET, SOCK_DGRAM, 0)) < 0) {
-		setuid(uid);
-		perror("arping: socket");
-		exit(2);
-	}
+	s = socket(PF_PACKET, SOCK_DGRAM, 0);
+	socket_errno = errno;
+
 	setuid(uid);
 
-	while ((ch = getopt(argc, argv, "bfDUAqc:w:s:I:V")) != EOF) {
+	while ((ch = getopt(argc, argv, "h?bfDUAqc:w:s:I:V")) != EOF) {
 		switch(ch) {
 		case 'b':
 			broadcast_only=1;
@@ -344,6 +343,8 @@ main(int argc, char **argv)
 		case 'V':
 			printf("arping utility, iputils-ss%s\n", SNAPSHOT);
 			exit(0);
+		case 'h':
+		case '?':
 		default:
 			usage();
 		}
@@ -359,6 +360,12 @@ main(int argc, char **argv)
 	if (device == NULL) {
 		fprintf(stderr, "arping: device (option -I) is required\n");
 		usage();
+	}
+
+	if (s < 0) {
+		errno = socket_errno;
+		perror("arping: socket");
+		exit(2);
 	}
 
 	if (1) {
@@ -414,10 +421,7 @@ main(int argc, char **argv)
 			exit(2);
 		}
 		if (device) {
-			struct ifreq ifr;
-			memset(&ifr, 0, sizeof(ifr));
-			strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
-			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr)) == -1)
+			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1)
 				perror("WARNING: interface is ignored");
 		}
 		memset(&saddr, 0, sizeof(saddr));

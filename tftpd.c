@@ -110,7 +110,7 @@ int main(int ac, char **av)
 	register int n = 0;
 	int on = 1;
 
-	/* Sanity. If parent forgot to getuid() on us. */
+	/* Sanity. If parent forgot to setuid() on us. */
 	if (geteuid() == 0) {
 		setgid(65534);
 		setuid(65534);
@@ -282,29 +282,26 @@ FILE *file;
 int validate_access(char *filename, int mode)
 {
 	struct stat stbuf;
-	int	fd;
-	char *cp;
+	int    fd;
+	char  *cp;
+	char   fnamebuf[1024+512];
 
-	for (cp = filename; *cp; cp++)
+	for (cp = filename; *cp; cp++) {
 		if(*cp == '.' && (cp == filename || strncmp(cp-1, "/../", 4) == 0)) {
 			syslog(LOG_ERR, "bad path %s", filename);
 			return(EACCESS);
 		}
+	}
 
 	if (*filename == '/')
 		filename++;
 
-	{
-		static char fn[1024];
-		if (!*dirs) {
-			syslog(LOG_ERR, "no dirs");
-			return EACCESS;
-		}
-		strcpy(fn, *dirs);
-		strcat(fn, "/");
-		strcat(fn, filename);
-		filename = fn;
+	if (!*dirs) {
+		syslog(LOG_ERR, "no dirs");
+		return EACCESS;
 	}
+	snprintf(fnamebuf, sizeof(fnamebuf)-1, "%s/%s", *dirs, filename);
+	filename = fnamebuf;
 
 	if (stat(filename, &stbuf) < 0) {
 		syslog(LOG_ERR, "stat %s : %m", filename);

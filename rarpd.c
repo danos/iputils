@@ -425,7 +425,7 @@ void serve_it(int fd)
 
 	n = recvfrom(fd, buf, sizeof(buf), MSG_DONTWAIT, (struct sockaddr*)&sll, &sll_len);
 	if (n<0) {
-		if (errno != EINTR)
+		if (errno != EINTR && errno != EAGAIN)
 			syslog(LOG_ERR, "recvfrom: %m");
 		return;
 	}

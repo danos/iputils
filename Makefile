@@ -40,6 +40,7 @@ ping6: ping6.o ping_common.o
 ping.o ping6.o ping_common.o: ping_common.h
 tftpd.o tftpsubs.o: tftp.h
 
+
 symlink:
 	ln -sf ../socketbits.h include-glibc/bits/socket.h
 
@@ -55,15 +56,27 @@ endif
 modules: check-kernel
 	$(MAKE) KERNEL_INCLUDE=$(KERNEL_INCLUDE) -C Modules
 
+man:
+	$(MAKE) -C doc man
+
+html:
+	$(MAKE) -C doc html
+
 clean:
 	rm -f *.o $(TARGETS)
 	$(MAKE) -C Modules clean
+	$(MAKE) -C doc clean
 
-install: all
-	install -m 4755 -o root -g root ping $(BASEDIR)/bin/
-	install -m 4755 -o root -g root ping6 $(BASEDIR)/bin/
-	install -m 4755 -o root -g root traceroute6 $(BASEDIR)/usr/sbin
-	install -m 0755 -o root -g root tracepath $(BASEDIR)/usr/sbin/
-	install -m 0755 -o root -g root tracepath6 $(BASEDIR)/usr/sbin/
-	install -m 0755 -o root -g root arping $(BASEDIR)/usr/sbin/
+install: html
+	$(MAKE) -C doc install
+
+snapshot: clean
+	@if [ ! -r RELNOTES.xxyyzz ]; then echo "Where are RELNOTES?"; exit 1; fi
+	@cp RELNOTES RELNOTES.bak
+	@date "+[%y%m%d]" > RELNOTES
+	@cat RELNOTES.xxyyzz >> RELNOTES
+	@cat RELNOTES.bak >> RELNOTES
+	@date "+static char SNAPSHOT[] = \"%y%m%d\";" > SNAPSHOT.h
+	@$(MAKE) -C doc snapshot
+	@rm -f RELNOTES.xxyyzz RELNOTES.bak
 
