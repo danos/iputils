@@ -75,14 +75,14 @@ static int current;     /* index of buffer in use */
 int newline = 0;        /* fillbuf: in middle of newline expansion */
 int prevchar = -1;      /* putbuf: previous char (cr check) */
 
-struct tftphdr *rw_init();
+struct tftphdr *rw_init(int);
 
 struct tftphdr *w_init() { return rw_init(0); }         /* write-behind */
 struct tftphdr *r_init() { return rw_init(1); }         /* read-ahead */
 
-struct tftphdr *
-rw_init(x)              /* init for either read-ahead or write-behind */
-int x;                  /* zero for write-behind, one for read-head */
+/* init for either read-ahead or write-behind */
+/* x is zero for write-behind, one for read-head */
+struct tftphdr *rw_init(int x)
 {
 	newline = 0;            /* init crlf flag */
 	prevchar = -1;
@@ -239,20 +239,13 @@ skipit:
 
 int synchnet(int f)
 {
-	int i, j = 0;
-	char rbuf[PKTSIZE];
-	struct sockaddr_in from;
-	int fromlen;
+	int j = 0;
+	char dummy;
 
 	while (1) {
-		(void) ioctl(f, FIONREAD, &i);
-		if (i) {
-			j++;
-			fromlen = sizeof from;
-			(void) recvfrom(f, rbuf, sizeof (rbuf), 0,
-				(struct sockaddr *)&from, &fromlen);
-		} else {
-			return(j);
-		}
+		if (recv(f, &dummy, 1, MSG_DONTWAIT) < 0)
+			break;
+		j++;
 	}
+	return j;
 }

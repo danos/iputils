@@ -164,7 +164,6 @@ enum
 #define MSG_NOSIGNAL	MSG_NOSIGNAL
   };
 
-
 /* Structure describing messages sent by
    `sendmsg' and received by `recvmsg'.  */
 struct msghdr

@@ -46,6 +46,7 @@ int count=-1;
 int timeout;
 int unicasting;
 int s;
+int broadcast_only;
 
 struct sockaddr_ll me;
 struct sockaddr_ll he;
@@ -61,8 +62,10 @@ int received, brd_recv, req_recv;
 void usage(void)
 {
 	fprintf(stderr,
- 		"Usage: arping [-fDUAV] [-c count] [-w timeout] [-I device] [-s source] destination\n"
+ 		"Usage: arping [-fqbDUAV] [-c count] [-w timeout] [-I device] [-s source] destination\n"
  		"  -f : quit on first reply\n"
+		"  -q : be quiet\n"
+ 		"  -b : keep broadcasting, don't go unicast\n"
 		"  -D : duplicate address detection mode\n"
 		"  -U : Unsolicited ARP mode, update your neighbours\n"
 		"  -A : ARP answer mode, update your neighbours\n"
@@ -129,7 +132,7 @@ int send_pack(int s, struct in_addr src, struct in_addr dst,
 	return err;
 }
 
-void finish()
+void finish(void)
 {
 	if (!quiet) {
 		printf("Sent %d probes (%d broadcast(s))\n", sent, brd_sent);
@@ -154,7 +157,7 @@ void finish()
 	exit(!received);
 }
 
-void catcher()
+void catcher(void)
 {
 	struct timeval tv;
 
@@ -284,8 +287,10 @@ int recv_pack(unsigned char *buf, int len, struct sockaddr_ll *FROM)
 		req_recv++;
 	if (quit_on_reply)
 		finish();
-	memcpy(he.sll_addr, p, me.sll_halen);
-	unicasting=1;
+	if(!broadcast_only) {
+		memcpy(he.sll_addr, p, me.sll_halen);
+		unicasting=1;
+	}
 	return 1;
 }
 
@@ -302,8 +307,11 @@ main(int argc, char **argv)
 	}
 	setuid(uid);
 
-	while ((ch = getopt(argc, argv, "fDUAqc:w:s:I:V")) != EOF) {
+	while ((ch = getopt(argc, argv, "bfDUAqc:w:s:I:V")) != EOF) {
 		switch(ch) {
+		case 'b':
+			broadcast_only=1;
+			break;
 		case 'D':
 			dad++;
 			quit_on_reply=1;

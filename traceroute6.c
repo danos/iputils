@@ -421,12 +421,9 @@ int main(int argc, char *argv[])
 	to->sin6_family = AF_INET6;
 	to->sin6_port = htons(port);
 
-	if (inet_pton(AF_INET6, *argv, &to->sin6_addr) > 0)
-	{
+	if (inet_pton(AF_INET6, *argv, &to->sin6_addr) > 0) {
 		hostname = *argv;
-	}
-	else 
-	{
+	} else {
 		hp = gethostbyname2(*argv, AF_INET6);
 		if (hp) {
 			memmove((caddr_t)&to->sin6_addr, hp->h_addr, 16);
@@ -441,10 +438,10 @@ int main(int argc, char *argv[])
 	if (*++argv)
 		datalen = atoi(*argv);
 
-	if (datalen < 0 || datalen >= MAXPACKET - sizeof(struct pkt_format)) {
+	if (datalen < (int)sizeof(struct pkt_format) || datalen >= MAXPACKET) {
 		Fprintf(stderr,
-		    "traceroute: packet size must be 0 <= s < %u.\n",
-		    MAXPACKET - sizeof(struct pkt_format));
+		    "traceroute: packet size must be %d <= s < %d.\n",
+			(int)sizeof(struct pkt_format), MAXPACKET);
 		exit(1);
 	}
 
@@ -479,7 +476,7 @@ int main(int argc, char *argv[])
 		perror("traceroute: SO_SNDBUF");
 		exit(6);
 	}
-#endif SO_SNDBUF
+#endif /* SO_SNDBUF */
 
 	if (options & SO_DEBUG)
 		(void) setsockopt(sndsock, SOL_SOCKET, SO_DEBUG,
@@ -734,14 +731,20 @@ int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
 	{
 		struct ipv6hdr *hip;
 		struct udphdr *up;
-
+		int nexthdr;
 
 		hip = (struct ipv6hdr *) (icp + 1);
-		if (hip->nexthdr == IPPROTO_UDP)
+		up = (struct udphdr *)(hip+1);
+		nexthdr = hip->nexthdr;
+
+		if (nexthdr == 44) {
+			nexthdr = *(unsigned char*)up;
+			up++;
+		}
+		if (nexthdr == IPPROTO_UDP)
 		{
 			struct pkt_format *pkt;
 			
-			up = (struct udphdr *)(hip+1);
 			pkt = (struct pkt_format *) (up + 1);
 
 			if (ntohl(pkt->ident) == ident &&

@@ -1,3 +1,16 @@
+iputils (3:0ss010824-1) unstable; urgency=low
+
+  * New upstream release (Closes: Bug#113306)
+
+ -- Noah Meyerhans <noahm@gnat.lcs.mit.edu>  Wed, 26 Sep 2001 17:09:51 -0400
+
+iputils (20001110-7) unstable; urgency=low
+
+  * Fixed the Conflicts line for iputils-arping.  (Closes: Bug#100287)
+  * Removed an obsolete call to dh_testversion in debian/rules
+
+ -- Noah Meyerhans <noahm@debian.org>  Wed, 13 Jun 2001 22:11:30 -0400
+
 iputils (20001110-7) unstable; urgency=low
 
   * Fixed the Conflicts line for iputils-arping.  (Closes: Bug#100287)
@@ -79,6 +92,3 @@ iputils (990107-1) unstable; urgency=low
 
  -- Anthony Towns <ajt@debian.org>  Sat,  5 Aug 2000 19:51:36 +1000
 
-Local variables:
-mode: debian-changelog
-End:

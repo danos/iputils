@@ -1,3 +1,78 @@
+[010824]
+* Alexandr D. Kanevskiy <kad@blackcatlinux.com>: ping compiled
+  for linux-2.4 forgot to send the second packet, when used with linux-2.2
+* Chris Evans <chris@scary.beasts.org>: buffer overflow in traceroute6.
+  datalen was messed: counting header in half of places.
+  Funny, looking into LBL traceroute, it is even worse :-)
+* Alexandr D. Kanevskiy <kad@blackcatlinux.com>: relayed patches
+  by Solar_Diz. Only missing description of option -q is accepted.
+* <ipatel@wilnetonline.net> ping6 printed wrong mtu.
+* Alexandr D. Kanevskiy <kad@blackcatlinux.com>: -Werror is removed.
+  Newer gcc are buggy and generates some wrong warnings about
+  uninitalized variables, which are evidently initialized.
+
+[010805]
+* Some news from Pekka Savola <pekkas@netcore.fi> around setting tos bits.
+* arping: broadcast-only mode by Ard van Breemen <ard@telegraafnet.nl>
+* ping6/traceroute6: parse ICMP errors with extension headers (me)
+  traceroute6 works with size > mtu now. Nice.
+* ping: Erik Quanstrom <quanstro@clark.net>. Serious patch.
+  ping interval timer was not very broken, but very unintelligible.
+  Though I remade the code to use leaky bucket logic, which
+  is the most transparent one. Anyway, contribution by Eric is
+  the most important one since the previous release.
+  Short theory of operation: option -i (interval) sets rate r=1/interval pps,
+  option -l (preload) sets burst size of l packets. So, ping sends
+  at most r*t+l packets for an arbitrary interval t.
+  Default values: l=1 and for non-flood case: r=1pps, for flood r=infinity.
+  Nice? Exact algorithm is:
+
+  Let N(t) be l/r=l*i initially and N(t) grow continuously with time as:
+
+	N(t+delta) = min{l*i, N(t) + delta}
+
+  Packet can be transmitted only at the time t_* when 1/r=i <= N(t_*)
+  and in this case N(t) jumps:
+
+	N(t_* + 0) = N(t_* - 0) - i.
+
+  When interval is zero, algo degenerates allowing to send any amount
+  of messages. In this case we modify it using l as limit on amount
+  of unanswered requests and waiting for 10msec, when something is not
+  answered. Note that the last thing (10msec) is just to be compatible with
+  BSD manual pages. BSD ping is simply not able to avoid delay technically,
+  we are able now.
+
+  In result we got some new facilities:
+  * "-f -l 100" becomes very aggressive, in fact on good link
+    it holds permanently 100 packets in flight, which is very different
+    of earlier bevaviour (one packet in flight).
+  * -f and -i are not incompatible more. In fact, "-f -i 1" is equivalent
+    to plain ping, only output is different (dotted). Essentially,
+    change of output format is the only effect. "ping -i 0" is flood
+    printing output in normal format.
+
+  Moved some parts of code to ping_common.c. Common part is not fully
+  trivial now. :-)
+
+* ping: Ian Lynagh <igloo@earth.li>, larger and dynamic dup detector.
+  Also, Ian submitted two large patches, one fixing formatting, another
+  doing something with signedness/longness. Not now...
+  Later note: found not working. x + 7 / 8 :-). Sorry... dubious, withdrawn.
+  size of table increased to maximal value instead (8K of memory,
+  not a big deal).
+* tftpd: an old misprint. left@sbor.spb.su (Igor A. Lefterov)
+* clockdiff: do not fail, if reversed resolution failed.
+  Tommy Lacroix <tommyl@zeroknowledge.com>
+* ping: audible ping by Patrik Schilt <patrik@bnc.ch>
+  Patrick's option renamed to -a to align to freebsd.
+* ping: react to device queue overflows using IP_RECVERR. me.
+* ping: option -S allows to change sndbuf 
+* rarpd is moved from separate package here (people asked)
+* ping6: kernel style bitops are not used more.
+* Option -A to adapt to network rtt.
+* Use BPF, when multiple pings are detected.
+
 [001110]
 * ping is able to select TOS. By Pekka Savola <pekkas@netcore.fi>
 * tracepath* DNS names. By Pawel Krawczyk <kravietz@ceti.com.pl> and

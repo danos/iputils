@@ -1,7 +1,9 @@
+#include <time.h>
 #include <sys/types.h>
 #include <sys/param.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <math.h>
 #include <string.h>
 #include <sys/time.h>
@@ -97,7 +99,6 @@ int sock_raw;
 char hostname[MAXHOSTNAMELEN];
 char serverhost[MAXHOSTNAMELEN];
 struct sockaddr_in server;
-int bytenetorder(), bytehostorder();
 int ip_opt_len = 0;
 
 #define BIASP	 	43199999
@@ -578,11 +579,6 @@ main(int argc, char *argv[])
 		fprintf(stderr, "clockdiff: %s: my host not found\n", hostname);
 		exit(1);
 	}
-	hp = gethostbyaddr(hp->h_addr, 4, AF_INET);
-	if (hp == NULL) {
-		fprintf(stderr, "clockdiff: %s: my host not found\n", hostname);
-		exit(1);
-	}
 	myname = strdup(hp->h_name);
 
 
@@ -593,13 +589,8 @@ main(int argc, char *argv[])
 		fprintf(stderr, "clockdiff: %s: host not found\n", argv[1]);
 		exit(1);
 	}
-	hp = gethostbyaddr(hp->h_addr, 4, AF_INET);
-	if (hp == NULL) {
-		fprintf(stderr, "clockdiff: %s: host not found\n", argv[1]);
-		exit(1);
-	}
 	hisname = strdup(hp->h_name);
-	
+
 	memset(&server, 0, sizeof(server));
 	server.sin_family = hp->h_addrtype;
 	bcopy(hp->h_addr, &(server.sin_addr.s_addr), 4); 

@@ -58,160 +58,40 @@ char copyright[] =
  *	This program has to run SUID to ROOT to access the ICMP socket.
  */
 
-#include <stdlib.h>
-#include <sys/param.h>
-#include <sys/socket.h>
-#include <linux/sockios.h>
-#include <sys/file.h>
-#include <sys/time.h>
-#include <sys/signal.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <sys/uio.h>
-#include <sys/poll.h>
+#include "ping_common.h"
 
-#include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <errno.h>
-#include <string.h>
-#include <arpa/inet.h>
-
-#include "SNAPSHOT.h"
 
 
-#define	DEFDATALEN	(64 - 8)	/* default data length */
 #define	MAXIPLEN	60
 #define	MAXICMPLEN	76
-#define	MAXWAIT		10		/* max seconds to wait for response */
 #define	NROUTES		9		/* number of record route slots */
 #define TOS_MAX		255		/* 8-bit TOS field */
 
-#define	A(bit)		rcvd_tbl[(bit)>>3]	/* identify byte in array */
-#define	B(bit)		(1 << ((bit) & 0x07))	/* identify bit in byte */
-#define	SET(bit)	(A(bit) |= B(bit))
-#define	CLR(bit)	(A(bit) &= (~B(bit)))
-#define	TST(bit)	(A(bit) & B(bit))
-
-/* various options */
-int options;
-#define	F_FLOOD		0x001
-#define	F_INTERVAL	0x002
-#define	F_NUMERIC	0x004
-#define	F_PINGFILLED	0x008
-#define	F_QUIET		0x010
-#define	F_RROUTE	0x020
-#define	F_SO_DEBUG	0x040
-#define	F_SO_DONTROUTE	0x080
-#define	F_VERBOSE	0x100
-#define	F_TIMESTAMP	0x200
-#define	F_SOURCEROUTE	0x400
-#define	F_FLOOD_POLL	0x800
-#define	F_LATENCY	0x1000
 
 static int ts_type;
 static int nroute = 0;
 static __u32 route[10];
 
 
-/* multicast options */
-static int moptions;
-#define MULTICAST_NOLOOP	0x001
-#define MULTICAST_TTL		0x002
-#define MULTICAST_IF		0x004
-
-/*
- * MAX_DUP_CHK is the number of bits in received table, i.e. the maximum
- * number of received sequence numbers we can keep track of.  Change 128
- * to 8192 for complete accuracy...
- */
-#define	MAX_DUP_CHK	(8 * 128)
-int mx_dup_ck = MAX_DUP_CHK;
-char rcvd_tbl[MAX_DUP_CHK / 8];
 
 struct sockaddr_in whereto;	/* who to ping */
-int datalen = DEFDATALEN;
 int optlen = 0;
 int settos = 0;			/* Set TOS, Precendence or other QOS options */
 int icmp_sock;			/* socket file descriptor */
 u_char outpack[0x10000];
-char BSPACE = '\b';		/* characters written for flood */
-char DOT = '.';
-char *hostname;
-int uid;
-int ident;			/* process id to identify our packets */
-
-/* counters */
-long npackets;			/* max packets to transmit */
-long nreceived;			/* # of packets we got back */
-long nrepeats;			/* number of duplicates */
-long ntransmitted;		/* sequence # for outbound packets = #sent */
-long nchecksum;			/* replies with bad checksum */
-long nerrors;			/* icmp errors */
-int interval = 1000;		/* interval between packets (msec) */
-int deadline = 0;		/* time to die */
-time_t starttime;
-int confirm = 0;
-
-#ifndef MSG_CONFIRM
-#define MSG_CONFIRM 0
-#endif
-
-int confirm_flag = MSG_CONFIRM;
-
-/* timing */
-int timing;			/* flag to do timing */
-long tmin = LONG_MAX;		/* minimum round trip time */
-long tmax;			/* maximum round trip time */
-unsigned long tsum;			/* sum of all times, for doing average */
-long long tsum2;
+int maxpacket = sizeof(outpack);
 
 static int broadcast_pings = 0;
 
 static char *pr_addr(__u32);
-static void catcher(int);
-static void finish(int) __attribute__((noreturn));
-static void fill(char *patp);
 static void pr_options(unsigned char * cp, int hlen);
 static void pr_iph(struct iphdr *ip);
-static void pr_retip(struct iphdr *ip);
 static void usage(void) __attribute__((noreturn));
-static void pinger(void);
-static int pr_pack(char *buf, int cc, struct sockaddr_in *from, struct timeval *tv);
 static u_short in_cksum(const u_short *addr, int len, u_short salt);
-static void pr_icmph(struct icmphdr *icp);
+static void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp);
 static int parsetos(char *str);
-
-/*
- * tvsub --
- *	Subtract 2 timeval structs:  out = out - in.  Out is assumed to
- * be >= in.
- */
-static __inline__ void tvsub(struct timeval *out, struct timeval *in)
-{
-	if ((out->tv_usec -= in->tv_usec) < 0) {
-		--out->tv_sec;
-		out->tv_usec += 1000000;
-	}
-	out->tv_sec -= in->tv_sec;
-}
-
-void set_signal(int signo, void (*handler)(int))
-{
-	struct sigaction sa;
-
-	memset(&sa, 0, sizeof(sa));
-
-	sa.sa_handler = (void (*)(int))handler;
-#ifdef SA_INTERRUPT
-	sa.sa_flags = SA_INTERRUPT;
-#endif
-	sigaction(signo, &sa, NULL);
-}
 
 static struct {
 	struct cmsghdr cm;
@@ -224,17 +104,15 @@ struct sockaddr_in source;
 char *device;
 int pmtudisc=-1;
 
+
 int
 main(int argc, char **argv)
 {
 	struct hostent *hp;
-	int i;
-	int ch, hold, packlen, preload;
+	int ch, hold, packlen;
 	int socket_errno;
 	u_char *packet;
 	char *target, hnamebuf[MAXHOSTNAMELEN];
-	u_char ttl, loop;
-	struct iovec iov;
 	char rspace[3 + 4 * NROUTES + 1];	/* record route space */
 
 	icmp_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
@@ -245,91 +123,18 @@ main(int argc, char **argv)
 
 	source.sin_family = AF_INET;
 
-	preload = 0;
-	while ((ch = getopt(argc, argv, "I:LT:Rc:dfh:i:l:nQ:p:qrs:t:vbw:UVM:")) != EOF) {
+	preload = 1;
+	while ((ch = getopt(argc, argv, COMMON_OPTSTR "bRT:")) != EOF) {
 		switch(ch) {
 		case 'b':
 		        broadcast_pings = 1;
-			break;
-		case 'c':
-			npackets = atoi(optarg);
-			if (npackets <= 0) {
-				fprintf(stderr, "ping: bad number of packets to transmit.\n");
-				exit(2);
-			}
-			break;
-		case 'd':
-			options |= F_SO_DEBUG;
-			break;
-		case 'f':
-			if (uid) {
-				fprintf(stderr, "ping: %s\n", strerror(EPERM));
-				exit(2);
-			}
-			options |= F_FLOOD;
-			setbuf(stdout, (char *)NULL);
-			break;
-		case 'i':		/* wait between sending packets */
-		{
-			if (strchr(optarg, '.')) {
-				float t;
-				if (sscanf(optarg, "%f", &t) != 1) {
-					fprintf(stderr, "ping: bad timing interval.\n");
-					exit(2);
-				}
-				interval = (int)(t*1000);
-			} else if (sscanf(optarg, "%d", &interval) == 1) {
-				interval *= 1000;
-			} else {
-				fprintf(stderr, "ping: bad timing interval.\n");
-				exit(2);
-			}
-
-			if (interval <= 0) {
-				fprintf(stderr, "ping: bad timing interval.\n");
-				exit(2);
-			}
-			if (interval <= 20 && uid) {
-				fprintf(stderr, "ping: %s\n", strerror(EPERM));
-				exit(2);
-			}
-			options |= F_INTERVAL;
-			break;
-		}
-		case 'w':
-			deadline = atoi(optarg);
-			if (deadline < 0) {
-				fprintf(stderr, "ping: bad wait time.\n");
-				exit(2);
-			}
-			break;
-		case 'l':
-			preload = atoi(optarg);
-			if (preload < 0) {
-				fprintf(stderr, "ping: bad preload value.\n");
-				exit(2);
-			}
-			if (uid) {
-				fprintf(stderr, "ping: %s\n", strerror(EPERM));
-				exit(2);
-			}
-			break;
-		case 'n':
-			options |= F_NUMERIC;
-			break;
-		case 'p':		/* fill buffer with user pattern */
-			options |= F_PINGFILLED;
-			fill(optarg);
-			break;
-		case 'q':
-			options |= F_QUIET;
 			break;
 		case 'Q':
 			settos = parsetos(optarg);
 			if (settos &&
 			    (setsockopt(icmp_sock, IPPROTO_IP, IP_TOS,
 					(char *)&settos, sizeof(int)) < 0)) {
-				perror("ping: error setting QOS sockopts.\n");
+				perror("ping: error setting QOS sockopts");
 				exit(2);
 			}
 			break;
@@ -357,32 +162,6 @@ main(int argc, char **argv)
 				exit(2);
 			}
 			break;
-		case 'r':
-			options |= F_SO_DONTROUTE;
-			break;
-		case 's':		/* size of packet to send */
-			datalen = atoi(optarg);
-			if (datalen < 0) {
-				fprintf(stderr, "ping: illegal negative packet size %d.\n", datalen);
-				exit(2);
-			}
-			break;
-		case 'v':
-			options |= F_VERBOSE;
-			break;
-		case 'L':
-			moptions |= MULTICAST_NOLOOP;
-			loop = 0;
-			break;
-		case 't':
-			moptions |= MULTICAST_TTL;
-			i = atoi(optarg);
-			if (i < 0 || i > 255) {
-				printf("ttl %u out of range\n", i);
-				exit(2);
-			}
-			ttl = i;
-			break;
 		case 'I':
 		{
 			char dummy;
@@ -401,9 +180,6 @@ main(int argc, char **argv)
 			}
 			break;
 		}
-		case 'U':
-			options |= F_LATENCY;
-			break;
 		case 'M':
 			if (strcmp(optarg, "do") == 0)
 				pmtudisc = IP_PMTUDISC_DO;
@@ -419,13 +195,16 @@ main(int argc, char **argv)
 		case 'V':
 			printf("ping utility, iputils-ss%s\n", SNAPSHOT);
 			exit(0);
+		COMMON_OPTIONS
+			common_options(ch);
+			break;
 		default:
 			usage();
 		}
 	}
 	argc -= optind;
 	argv += optind;
-	
+
 	if (argc == 0) 
 		usage();
 	if (argc > 1) {
@@ -494,15 +273,13 @@ main(int argc, char **argv)
 						perror("ping: IP_MULTICAST_IF");
 						exit(2);
 					}
-				} else {
-					perror("WARNING: interface is ignored");
 				}
 			}
 		}
 
 		if (settos &&
 		    setsockopt(probe_fd, IPPROTO_IP, IP_TOS, (char *)&settos, sizeof(int)) < 0)
-			perror("Warning: error setting QOS sockopts.\n");
+			perror("Warning: error setting QOS sockopts");
 
 		dst.sin_port = htons(1025);
 		if (nroute)
@@ -536,6 +313,9 @@ main(int argc, char **argv)
 		source.sin_port = 0;
 		close(probe_fd);
 	} while (0);
+
+	if (whereto.sin_addr.s_addr == 0)
+		whereto.sin_addr.s_addr = source.sin_addr.s_addr;
 
 	if (icmp_sock < 0) {
 		errno = socket_errno;
@@ -585,8 +365,8 @@ main(int argc, char **argv)
 
 	if (1) {
 		struct icmp_filter filt;
-		filt.data = ~((1<<ICMP_DEST_UNREACH)|
-			      (1<<ICMP_SOURCE_QUENCH)|
+		filt.data = ~((1<<ICMP_SOURCE_QUENCH)|
+			      (1<<ICMP_DEST_UNREACH)|
 			      (1<<ICMP_TIME_EXCEEDED)|
 			      (1<<ICMP_PARAMETERPROB)|
 			      (1<<ICMP_REDIRECT)|
@@ -595,16 +375,9 @@ main(int argc, char **argv)
 			perror("WARNING: setsockopt(ICMP_FILTER)");
 	}
 
-	if (options & F_FLOOD && options & F_INTERVAL) {
-		fprintf(stderr, "ping: -f and -i incompatible options.\n");
-		exit(2);
-	}
-
 	hold = 1;
-	if (options & F_SO_DEBUG)
-		setsockopt(icmp_sock, SOL_SOCKET, SO_DEBUG, (char *)&hold, sizeof(hold));
-	if (options & F_SO_DONTROUTE)
-		setsockopt(icmp_sock, SOL_SOCKET, SO_DONTROUTE, (char *)&hold, sizeof(hold));
+	if (setsockopt(icmp_sock, SOL_IP, IP_RECVERR, (char *)&hold, sizeof(hold)))
+		fprintf(stderr, "WARNING: your kernel is veeery old. No problems.\n");
 
 	/* record route option */
 	if (options & F_RROUTE) {
@@ -658,14 +431,11 @@ main(int argc, char **argv)
 		optlen = 40;
 	}
 
-	/* Set sndbuf to value, not allowing to queue more than two
-	 * packets. It is very rough hint, certainly. */
+	/* Estimate memory eaten by single packet. It is rough estimate.
+	 * Actually, for small datalen's it depends on kernel side a lot. */
 	hold = datalen + 8;
-	hold += ((hold+511)/512)*(optlen + 20 + 128);
-	setsockopt(icmp_sock, SOL_SOCKET, SO_SNDBUF, (char *)&hold, sizeof(hold));
-
-	hold = 65535;
-	setsockopt(icmp_sock, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
+	hold += ((hold+511)/512)*(optlen + 20 + 16 + 64 + 160);
+	sock_setbufs(icmp_sock, hold);
 
 	if (broadcast_pings) {
 		if (setsockopt(icmp_sock, SOL_SOCKET, SO_BROADCAST,
@@ -713,188 +483,106 @@ main(int argc, char **argv)
 		exit(2);
 	}
 
-	if (!(options & F_PINGFILLED)) {
-		char *p = outpack+8;
-
-		/* Do not forget about case of small datalen,
-		 * fill timestamp area too!
-		 */
-		for (i = 0; i < datalen; ++i)
-			*p++ = i;
-	}
-
-	ident = getpid() & 0xFFFF;
-
-#ifdef SO_TIMESTAMP
-	if (!(options&F_LATENCY)) {
-		int on = 1;
-		if (setsockopt(icmp_sock, SOL_SOCKET, SO_TIMESTAMP, &on, sizeof(on)))
-			fprintf(stderr, "Warning: no SO_TIMESTAMP support, falling back to SIOCGSTAMP\n");
-	}
-#endif
-
 	printf("PING %s (%s) ", hostname, inet_ntoa(whereto.sin_addr));
 	printf("from %s %s: ", inet_ntoa(source.sin_addr), device ?: "");
-
 	printf("%d(%d) bytes of data.\n", datalen, datalen+8+optlen+20);
 
-	if (1) {
-		struct timeval tv;
-		tv.tv_sec = 1;
-		tv.tv_usec = 0;
-		if (interval < 1000) {
-			tv.tv_sec = 0;
-			tv.tv_usec = interval%1000;
-		}
-		setsockopt(icmp_sock, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));
-	}
+	setup(icmp_sock);
 
-	set_signal(SIGINT, finish);
-	set_signal(SIGALRM, catcher);
-
-	while (preload--)		/* fire off them quickies */
-		pinger();
-
-	if ((options & F_FLOOD) == 0) {
-		catcher(0);		/* start things going */
-	} else {
-		struct timeval tv;
-		tv.tv_usec = 20000;
-		tv.tv_sec = 0;
-		if (setsockopt(icmp_sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv))) {
-			fprintf(stderr, "Warning: no SO_RCVTIMEO support, falling back to poll\n");
-			options |= F_FLOOD_POLL;
-		}
-	}
-
-	starttime = time(NULL);
-	iov.iov_base = (char *)packet;
-
-	for (;;) {
-		char ans_data[128];
-		struct sockaddr_in from;
-		struct msghdr msg = {
-			(void*)&from, sizeof(from),
-			&iov, 1,
-			ans_data, sizeof(ans_data),
-		};
-		struct cmsghdr *c;
-		int cc;
-
-		if (npackets && nreceived >= npackets)
-			break;
-		if (deadline && (nerrors ||
-				 (int)(time(NULL) - starttime) > deadline))
-			break;
-
-		if (options & F_FLOOD) {
-			pinger();
-		}
-
-reselect:
-		if (options & F_FLOOD_POLL) {
-			struct pollfd pset;
-
-			pset.fd = icmp_sock;
-			pset.events = POLLIN|POLLERR;
-			pset.revents = 0;
-			if (poll(&pset, 1, 20) < 1 || !(pset.revents&(POLLIN|POLLERR)))
-				continue;
-		}
-
-		iov.iov_len = packlen;
-
-		if ((cc = recvmsg(icmp_sock, &msg, 0)) < 0) {
-			if (errno != EINTR && errno != EWOULDBLOCK)
-				perror("ping: recvmsg");
-		} else {
-			struct timeval *recv_timep = NULL;
-			struct timeval recv_time;
-
-#ifdef SO_TIMESTAMP
-			for (c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c)) {
-				if (c->cmsg_level != SOL_SOCKET ||
-				    c->cmsg_type != SO_TIMESTAMP)
-					continue;
-				if (c->cmsg_len < CMSG_LEN(sizeof(struct timeval)))
-					continue;
-				recv_timep = (struct timeval*)CMSG_DATA(c);
-			}
-#endif
-
-			if ((options&F_LATENCY) || recv_timep == NULL) {
-				if ((options&F_LATENCY) ||
-				    ioctl(icmp_sock, SIOCGSTAMP, &recv_time))
-					gettimeofday(&recv_time, NULL);
-				recv_timep = &recv_time;
-			}
-			if (pr_pack((char *)packet, cc, &from, recv_timep)) {
-				if (options & F_FLOOD)
-					goto reselect;
-			}
-		}
-	}
-	finish(0);
-	/* NOTREACHED */
+	main_loop(icmp_sock, packet, packlen);
 }
 
-/*
- * catcher --
- *	This routine causes another PING to be transmitted, and then
- * schedules another SIGALRM for 'interval' milliseconds from now.
- * 
- * bug --
- *	Our sense of time will slowly skew (i.e., packets will not be
- * launched exactly at given intervals).  This does not affect the
- * quality of the delay and loss statistics.
- */
-void
-catcher(int signo)
+
+int receive_error_msg()
 {
-	static int slop = 10;
-	static struct timeval prev;
-	struct timeval now;
-	long delta = 0;
-	int waittime;
+	int res;
+	char cbuf[512];
+	struct iovec  iov;
+	struct msghdr msg;
+	struct cmsghdr *cmsg;
+	struct sock_extended_err *e;
+	struct icmphdr icmph;
+	struct sockaddr_in target;
+	int net_errors = 0;
+	int local_errors = 0;
 	int saved_errno = errno;
 
-	gettimeofday(&now, NULL);
+	iov.iov_base = &icmph;
+	iov.iov_len = sizeof(icmph);
+	msg.msg_name = (void*)&target;
+	msg.msg_namelen = sizeof(target);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_flags = 0;
+	msg.msg_control = cbuf;
+	msg.msg_controllen = sizeof(cbuf);
 
-	if (signo) {
-		delta = now.tv_sec - prev.tv_sec;
-		delta = delta*1000 + (now.tv_usec - prev.tv_usec)/1000;
-		if (delta >= (interval-slop))
-			signo = 0;
+	res = recvmsg(icmp_sock, &msg, MSG_ERRQUEUE|MSG_DONTWAIT);
+	if (res < 0)
+		goto out;
+
+	e = NULL;
+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+		if (cmsg->cmsg_level == SOL_IP) {
+			if (cmsg->cmsg_type == IP_RECVERR)
+				e = (struct sock_extended_err *)CMSG_DATA(cmsg);
+		}
+	}
+	if (e == NULL)
+		abort();
+
+	if (e->ee_origin == SO_EE_ORIGIN_LOCAL) {
+		local_errors++;
+		if (options & F_QUIET)
+			goto out;
+		if (options & F_FLOOD)
+			write(STDOUT_FILENO, "E", 1);
+		else if (e->ee_errno != EMSGSIZE)
+			fprintf(stderr, "ping: local error: %s\n", strerror(e->ee_errno));
+		else
+			fprintf(stderr, "ping: local error: Message too long, mtu=%u\n", e->ee_info);
+		nerrors++;
+	} else if (e->ee_origin == SO_EE_ORIGIN_ICMP) {
+		struct sockaddr_in *sin = (struct sockaddr_in*)(e+1);
+
+		if (res < sizeof(icmph) ||
+		    target.sin_addr.s_addr != whereto.sin_addr.s_addr ||
+		    icmph.type != ICMP_ECHO ||
+		    icmph.un.echo.id != ident) {
+			/* Not our error, not an error at all. Clear. */
+			saved_errno = 0;
+			goto out;
+		}
+
+		acknowledge(icmph.un.echo.sequence);
+
+		if (!working_recverr) {
+			struct icmp_filter filt;
+			working_recverr = 1;
+			/* OK, it works. Add stronger filter. */
+			filt.data = ~((1<<ICMP_SOURCE_QUENCH)|
+				      (1<<ICMP_REDIRECT)|
+				      (1<<ICMP_ECHOREPLY));
+			if (setsockopt(icmp_sock, SOL_RAW, ICMP_FILTER, (char*)&filt, sizeof(filt)) == -1)
+				perror("\rWARNING: setsockopt(ICMP_FILTER)");
+		}
+
+		net_errors++;
+		nerrors++;
+		if (options & F_QUIET)
+			goto out;
+		if (options & F_FLOOD) {
+			write(STDOUT_FILENO, "\bE", 2);
+		} else {
+			printf("From %s icmp_seq=%u ", pr_addr(sin->sin_addr.s_addr), icmph.un.echo.sequence);
+			pr_icmph(e->ee_type, e->ee_code, e->ee_info, NULL);
+			fflush(stdout);
+		}
 	}
 
-	if (signo == 0) {
-		pinger();
-		prev = now;
-	}
-
-	if (!npackets || ntransmitted < npackets || deadline) {
-		waittime = interval*1000;
-	} else {
-		if (nreceived) {
-			waittime = 2 * tmax;
-			if (waittime<1000000)
-				waittime = 1000000;
-		} else
-			waittime = MAXWAIT*1000000;
-		set_signal(SIGALRM, finish);
-	}
-
-	do {
-		struct itimerval it;
-
-		it.it_interval.tv_sec = 0;
-		it.it_interval.tv_usec = 0;
-		it.it_value.tv_sec = waittime/1000000;
-		it.it_value.tv_usec = waittime%1000000;
-		setitimer(ITIMER_REAL, &it, NULL);
-	} while (0);
-
+out:
 	errno = saved_errno;
+	return net_errors ? : -local_errors;
 }
 
 /*
@@ -905,17 +593,17 @@ catcher(int signo)
  * of the data portion are used to hold a UNIX "timeval" struct in VAX
  * byte-order, to compute the round-trip time.
  */
-void pinger()
+int send_probe()
 {
-	register struct icmphdr *icp;
-	register int cc;
+	struct icmphdr *icp;
+	int cc;
 	int i;
 
 	icp = (struct icmphdr *)outpack;
 	icp->type = ICMP_ECHO;
 	icp->code = 0;
 	icp->checksum = 0;
-	icp->un.echo.sequence = ntransmitted++;
+	icp->un.echo.sequence = ntransmitted+1;
 	icp->un.echo.id = ident;			/* ID */
 
 	CLR(icp->un.echo.sequence % mx_dup_ck);
@@ -948,52 +636,35 @@ void pinger()
 		icp->checksum = in_cksum((u_short *)(icp+1), fake_fucked_egcs, ~icp->checksum);
 	}
 
-resend:
         do {
 		static struct iovec iov = {outpack, 0};
 		static struct msghdr m = { &whereto, sizeof(whereto),
 						   &iov, 1, &cmsg, 0, 0 };
 		m.msg_controllen = cmsg_len;
 		iov.iov_len = cc;
-	
+
 		i = sendmsg(icmp_sock, &m, confirm);
 		confirm = 0;
 	} while (0);
 
-	if (i<0 && confirm_flag) {
-		confirm_flag = 0;
-		goto resend;
-	} 
-
-	if (i < 0 || i != cc)  {
-		if (i < 0) {
-			if (errno == EAGAIN) {
-				ntransmitted--;
-			} else {
-				perror("ping: sendto");
-			}
-		} else {
-			printf("ping: wrote %s %d chars, ret=%d\n", hostname, cc, i);
-		}
-	} else if (!(options & F_QUIET) && options & F_FLOOD)
-		write(STDOUT_FILENO, &DOT, 1);
+	return (cc == i ? 0 : i);
 }
 
 /*
- * pr_pack --
+ * parse_reply --
  *	Print out the packet, if it came from us.  This logic is necessary
  * because ALL readers of the ICMP socket get a copy of ALL ICMP packets
  * which arrive ('tis only fair).  This permits multiple copies of this
  * program to be run without having intermingled output (or statistics!).
  */
 int
-pr_pack(char *buf, int cc, struct sockaddr_in *from, struct timeval *tv)
+parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 {
+	struct sockaddr_in *from = addr;
+	__u8 *buf = msg->msg_iov->iov_base;
 	struct icmphdr *icp;
-	u_char *cp,*dp;
 	struct iphdr *ip;
-	long triptime = 0;
-	int hlen, dupflag = 0;
+	int hlen;
 	int csfailed;
 
 	/* Check the IP header */
@@ -1014,105 +685,21 @@ pr_pack(char *buf, int cc, struct sockaddr_in *from, struct timeval *tv)
 	if (icp->type == ICMP_ECHOREPLY) {
 		if (icp->un.echo.id != ident)
 			return 1;			/* 'Twas not our ECHO */
-		++nreceived;
-		if (timing && cc >= sizeof(struct timeval)+8) {
-		        struct timeval *tp;
-		        struct timeval tmp_tv;
-			tp = &tmp_tv;
-			memcpy(&tmp_tv, icp+1, sizeof(tmp_tv));
-
-restamp:
-			tvsub(tv, tp);
-			triptime = tv->tv_sec * 1000000 + tv->tv_usec;
-			if (triptime < 0) {
-				triptime = 0;
-				fprintf(stderr, "Warning: time of day goes back, taking countermeasures.\n");
-				if (!(options & F_LATENCY)) {
-					gettimeofday(tv, NULL);
-					options |= F_LATENCY;
-					goto restamp;
-				}
-			}
-			if (!csfailed) {
-				tsum += triptime;
-				tsum2 += (long long)triptime * triptime;
-
-				if (triptime < tmin)
-					tmin = triptime;
-				if (triptime > tmax)
-					tmax = triptime;
-			}
-		}
-
-		if (csfailed) {
-			++nchecksum;
-			--nreceived;
-		} else if (TST(icp->un.echo.sequence % mx_dup_ck)) {
-			++nrepeats;
-			--nreceived;
-			dupflag = 1;
-		} else {
-			SET(icp->un.echo.sequence % mx_dup_ck);
-		}
-		confirm = confirm_flag;
-
-		if (options & F_QUIET)
+		if (gather_statistics((__u8*)(icp+1), cc,
+				      icp->un.echo.sequence,
+				      ip->ttl, 0, tv, pr_addr(from->sin_addr.s_addr)))
 			return 0;
-
-		if (options & F_FLOOD) {
-			write(STDOUT_FILENO, &BSPACE, 1);
-			if (csfailed)
-				write(STDOUT_FILENO, "C", 1);
-		} else {
-			int i;
-			printf("%d bytes from %s: icmp_seq=%u", cc,
-			       pr_addr(from->sin_addr.s_addr),
-			       icp->un.echo.sequence);
-			printf(" ttl=%d", ip->ttl);
-			if (cc < datalen+8) {
-				printf(" (truncated)");
-				return 1;
-			}
-			if (timing) {
-				if (triptime >= 1000000) {
-					printf(" time=%ld.%03ld sec", triptime/1000000,
-					       (triptime%1000000)/1000);
-				} else if (triptime >= 1000) {
-					printf(" time=%ld.%03ld msec", triptime/1000,
-					       triptime%1000);
-				} else {
-					printf(" time=%ld usec", triptime);
-				}
-			}
-			if (dupflag)
-				printf(" (DUP!)");
-			if (csfailed)
-				printf(" (BAD CHECKSUM!)");
-			/* check the data */
-			cp = ((u_char*)(icp + 1) + sizeof(struct timeval));
-			dp = &outpack[8 + sizeof(struct timeval)];
-			for (i = sizeof(struct timeval); i < datalen; ++i, ++cp, ++dp) {
-				if (*cp != *dp) {
-					printf("\nwrong data byte #%d should be 0x%x but was 0x%x",
-					       i, *dp, *cp);
-					cp = (u_char*)(icp + 1) + sizeof(struct timeval);
-					for (i = sizeof(struct timeval); i < datalen; ++i, ++cp) {
-						if ((i % 32) == sizeof(struct timeval))
-							printf("\n#%d\t", i);
-						printf("%x ", *cp);
-					}
-					break;
-				}
-			}
-		}
 	} else {
+		/* We fall here when a redirect or source quench arrived.
+		 * Also this branch processes icmp errors, when IP_RECVERR
+		 * is broken. */
+		   
 	        switch (icp->type) {
 		case ICMP_ECHO:
+			/* MUST NOT */
 			return 1;
 		case ICMP_SOURCE_QUENCH:
 		case ICMP_REDIRECT:
-			if (options & F_FLOOD)
-				return 1;
 		case ICMP_DEST_UNREACH:
 		case ICMP_TIME_EXCEEDED:
 		case ICMP_PARAMETERPROB:
@@ -1124,31 +711,44 @@ restamp:
 				    cc < 8+iph->ihl*4+8)
 					return 1;
 				if (icp1->type != ICMP_ECHO ||
-				    iph->saddr != ip->daddr ||
+				    iph->daddr != whereto.sin_addr.s_addr ||
 				    icp1->un.echo.id != ident)
 					return 1;
 				error_pkt = (icp->type != ICMP_REDIRECT &&
 					     icp->type != ICMP_SOURCE_QUENCH);
+				if (error_pkt) {
+					acknowledge(icp1->un.echo.sequence);
+					if (working_recverr) {
+						return 0;
+					} else {
+						static int once;
+						if (!once) {
+							fprintf(stderr, "\rWARNING: kernel is not very fresh, upgrade is recommended.\n");
+							once = 1;
+						}
+					}
+				}
 				nerrors+=error_pkt;
 				if (options&F_QUIET)
 					return !error_pkt;
 				if (options & F_FLOOD) {
-					if (error_pkt) {
-						write(STDOUT_FILENO, &BSPACE, 1);
-						write(STDOUT_FILENO, "E", 1);
-					}
+					if (error_pkt)
+						write(STDOUT_FILENO, "\bE", 2);
 					return !error_pkt;
 				}
-				printf("From %s: ", pr_addr(from->sin_addr.s_addr));
+				printf("From %s: icmp_seq=%u ",
+				       pr_addr(from->sin_addr.s_addr),
+				       icp1->un.echo.sequence);
 				if (csfailed)
 					printf("(BAD CHECKSUM)");
-				pr_icmph(icp);
+				pr_icmph(icp->type, icp->code, ntohl(icp->un.gateway), icp);
 				return !error_pkt;
 			}
 	        default:
+			/* MUST NOT */
 			break;
 		}
-		if (options & F_FLOOD && !(options & (F_VERBOSE|F_QUIET))) {
+		if ((options & F_FLOOD) && !(options & (F_VERBOSE|F_QUIET))) {
 			if (!csfailed)
 				write(STDOUT_FILENO, "!E", 2);
 			else
@@ -1159,15 +759,18 @@ restamp:
 			return 0;
 		printf("From %s: ", pr_addr(from->sin_addr.s_addr));
 		if (csfailed) {
-			printf("(BAD CHECKSUM)");
+			printf("(BAD CHECKSUM)\n");
 			return 0;
 		}
-		pr_icmph(icp);
+		pr_icmph(icp->type, icp->code, ntohl(icp->un.gateway), icp);
 		return 0;
 	}
 
-	pr_options((u_char *)buf + sizeof(struct iphdr), hlen);
 	if (!(options & F_FLOOD)) {
+		pr_options(buf + sizeof(struct iphdr), hlen);
+
+		if (options & F_AUDIBLE)
+			putchar('\a');
 		putchar('\n');
 		fflush(stdout);
 	}
@@ -1206,97 +809,19 @@ in_cksum(const u_short *addr, register int len, u_short csum)
 	return (answer);
 }
 
-static long llsqrt(long long a)
-{
-	long long prev = ~((long long)1 << 63);
-	long long x = a;
-
-	if (x > 0) {
-		while (x < prev) {
-			prev = x;
-			x = (x+(a/x))/2;
-		}
-	}
-
-	return (long)x;
-}
-
-
-/*
- * finish --
- *	Print out statistics, and give up.
- */
-void
-finish(int signo)
-{
-	set_signal(SIGALRM, SIG_IGN);
-
-	putchar('\n');
-	fflush(stdout);
-	printf("--- %s ping statistics ---\n", hostname);
-	printf("%ld packets transmitted, ", ntransmitted);
-	printf("%ld packets received, ", nreceived);
-	if (nrepeats)
-		printf("+%ld duplicates, ", nrepeats);
-	if (nchecksum)
-		printf("+%ld corrupted, ", nchecksum);
-	if (nerrors)
-		printf("+%ld errors, ", nerrors);
-	if (ntransmitted) {
-		if (nreceived > ntransmitted)
-			printf("-- somebody's printing up packets!");
-		else
-			printf("%d%% packet loss",
-			       (int) (((ntransmitted - nreceived) * 100) /
-				      ntransmitted));
-	}
-	putchar('\n');
-	if (nreceived && timing) {
-		long tmdev;
-
-		tsum /= nreceived + nrepeats + nchecksum;
-		tsum2 /= nreceived + nrepeats + nchecksum;
-		tmdev = llsqrt(tsum2 - (long long)tsum * (long long)tsum);
-
-		printf("round-trip min/avg/max/mdev = %ld.%03ld/%lu.%03ld/%ld.%03ld/%ld.%03ld ms\n",
-		       tmin/1000, tmin%1000,
-		       tsum/1000, tsum%1000,
-		       tmax/1000, tmax%1000,
-		       tmdev/1000, tmdev%1000
-		       );
-	}
-	exit(deadline ? nreceived<npackets : nreceived==0);
-}
-
-#ifdef notdef
-static char *ttab[] = {
-	"Echo Reply",		/* ip + seq + udata */
-	"Dest Unreachable",	/* net, host, proto, port, frag, sr + IP */
-	"Source Quench",	/* IP */
-	"Redirect",		/* redirect type, gateway, + IP  */
-	"Echo",
-	"Time Exceeded",	/* transit, frag reassem + IP */
-	"Parameter Problem",	/* pointer + IP */
-	"Timestamp",		/* id + seq + three timestamps */
-	"Timestamp Reply",	/* " */
-	"Info Request",		/* id + sq */
-	"Info Reply"		/* " */
-};
-#endif
-
 /*
  * pr_icmph --
  *	Print a descriptive string about an ICMP header.
  */
-void pr_icmph(struct icmphdr *icp)
+void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp)
 {
-	switch(icp->type) {
+	switch(type) {
 	case ICMP_ECHOREPLY:
 		printf("Echo Reply\n");
 		/* XXX ID + Seq + Data */
 		break;
 	case ICMP_DEST_UNREACH:
-		switch(icp->code) {
+		switch(code) {
 		case ICMP_NET_UNREACH:
 			printf("Destination Net Unreachable\n");
 			break;
@@ -1310,8 +835,7 @@ void pr_icmph(struct icmphdr *icp)
 			printf("Destination Port Unreachable\n");
 			break;
 		case ICMP_FRAG_NEEDED:
-			printf("Frag needed and DF set (mtu = %u)\n",
-			       (unsigned int)ntohl(icp->un.gateway));
+			printf("Frag needed and DF set (mtu = %u)\n", info);
 			break;
 		case ICMP_SR_FAILED:
 			printf("Source Route Failed\n");
@@ -1320,23 +844,19 @@ void pr_icmph(struct icmphdr *icp)
 			printf("Packet filtered\n");
 			break;
 		default:
-			printf("Dest Unreachable, Bad Code: %d\n",
-			    icp->code);
+			printf("Dest Unreachable, Bad Code: %d\n", code);
 			break;
 		}
-		if (!(options & F_VERBOSE))
-			break;
-		/* Print returned IP header information */
-		pr_retip((struct iphdr*)(icp + 1));
+		if (icp && (options & F_VERBOSE))
+			pr_iph((struct iphdr*)(icp + 1));
 		break;
 	case ICMP_SOURCE_QUENCH:
 		printf("Source Quench\n");
-		if (!(options & F_VERBOSE))
-			break;
-		pr_retip((struct iphdr*)(icp + 1));
+		if (icp && (options & F_VERBOSE))
+			pr_iph((struct iphdr*)(icp + 1));
 		break;
 	case ICMP_REDIRECT:
-		switch(icp->code) {
+		switch(code) {
 		case ICMP_REDIR_NET:
 			printf("Redirect Network");
 			break;
@@ -1350,20 +870,20 @@ void pr_icmph(struct icmphdr *icp)
 			printf("Redirect Type of Service and Host");
 			break;
 		default:
-			printf("Redirect, Bad Code: %d", icp->code);
+			printf("Redirect, Bad Code: %d", code);
 			break;
 		}
-		printf("(New nexthop: %s)\n", pr_addr(icp->un.gateway));
-		if (!(options & F_VERBOSE))
-			break;
-		pr_retip((struct iphdr*)(icp + 1));
+		if (icp)
+			printf("(New nexthop: %s)\n", pr_addr(icp->un.gateway));
+		if (icp && (options & F_VERBOSE))
+			pr_iph((struct iphdr*)(icp + 1));
 		break;
 	case ICMP_ECHO:
 		printf("Echo Request\n");
 		/* XXX ID + Seq + Data */
 		break;
 	case ICMP_TIME_EXCEEDED:
-		switch(icp->code) {
+		switch(code) {
 		case ICMP_EXC_TTL:
 			printf("Time to live exceeded\n");
 			break;
@@ -1371,18 +891,16 @@ void pr_icmph(struct icmphdr *icp)
 			printf("Frag reassembly time exceeded\n");
 			break;
 		default:
-			printf("Time exceeded, Bad Code: %d\n", icp->code);
+			printf("Time exceeded, Bad Code: %d\n", code);
 			break;
 		}
-		if (!(options & F_VERBOSE))
-			break;
-		pr_retip((struct iphdr*)(icp + 1));
+		if (icp && (options & F_VERBOSE))
+			pr_iph((struct iphdr*)(icp + 1));
 		break;
 	case ICMP_PARAMETERPROB:
-		printf("Parameter problem: pointer = %d\n", (int)(ntohl(icp->un.gateway)>>24));
-		if (!(options & F_VERBOSE))
-			break;
-		pr_retip((struct iphdr*)(icp + 1));
+		printf("Parameter problem: pointer = %u\n", icp ? (ntohl(icp->un.gateway)>>24) : info);
+		if (icp && (options & F_VERBOSE))
+			pr_iph((struct iphdr*)(icp + 1));
 		break;
 	case ICMP_TIMESTAMP:
 		printf("Timestamp\n");
@@ -1411,7 +929,7 @@ void pr_icmph(struct icmphdr *icp)
 		break;
 #endif
 	default:
-		printf("Bad ICMP type: %d\n", icp->type);
+		printf("Bad ICMP type: %d\n", type);
 	}
 }
 
@@ -1597,7 +1115,7 @@ char *
 pr_addr(__u32 addr)
 {
 	struct hostent *hp;
-	static char buf[80];
+	static char buf[4096];
 
 	if ((options & F_NUMERIC) ||
 	    !(hp = gethostbyaddr((char *)&addr, 4, AF_INET)))
@@ -1608,62 +1126,6 @@ pr_addr(__u32 addr)
 	return(buf);
 }
 
-/*
- * pr_retip --
- *	Dump some info on a returned (via ICMP) IP packet.
- */
-void pr_retip(struct iphdr *ip)
-{
-	int hlen;
-	u_char *cp;
-
-	pr_iph(ip);
-	hlen = ip->ihl << 2;
-	cp = (u_char *)ip + hlen;
-
-	if (ip->protocol == 6)
-		printf("TCP: from port %u, to port %u (decimal)\n",
-		    (*cp * 256 + *(cp + 1)), (*(cp + 2) * 256 + *(cp + 3)));
-	else if (ip->protocol == 17)
-		printf("UDP: from port %u, to port %u (decimal)\n",
-			(*cp * 256 + *(cp + 1)), (*(cp + 2) * 256 + *(cp + 3)));
-}
-
-/* Fills all the outpack, excluding ICMP header, but _including_
- * timestamp area with supplied pattern.
- */
-void fill(char *patp)
-{
-	int ii, jj, kk;
-	int pat[16];
-	char *cp;
-	char *bp = outpack+8;
-
-	for (cp = patp; *cp; cp++) {
-		if (!isxdigit(*cp)) {
-			fprintf(stderr,
-				"ping: patterns must be specified as hex digits.\n");
-			exit(2);
-		}
-	}
-	ii = sscanf(patp,
-	    "%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x",
-	    &pat[0], &pat[1], &pat[2], &pat[3], &pat[4], &pat[5], &pat[6],
-	    &pat[7], &pat[8], &pat[9], &pat[10], &pat[11], &pat[12],
-	    &pat[13], &pat[14], &pat[15]);
-
-	if (ii > 0) {
-		for (kk = 0; kk <= sizeof(outpack) - (8 + ii); kk += ii)
-			for (jj = 0; jj < ii; ++jj)
-				bp[jj + kk] = pat[jj];
-	}
-	if (!(options & F_QUIET)) {
-		printf("PATTERN: 0x");
-		for (jj = 0; jj < ii; ++jj)
-			printf("%02x", bp[jj] & 0xFF);
-		printf("\n");
-	}
-}
 
 /* Set Type of Service (TOS) and other Quality of Service relating bits */
 int parsetos(char *str)
@@ -1686,15 +1148,50 @@ int parsetos(char *str)
         }
 
         if (tos > TOS_MAX) {
-        	fprintf(stderr, "ping: the decimal value of TOS bits must be 2-254 (or zero)\n");
+        	fprintf(stderr, "ping: the decimal value of TOS bits must be 0-254 (or zero)\n");
         	exit(2);
         }
 	return(tos);
 }
 
+#include <linux/filter.h>
+
+void install_filter(void)
+{
+	static int once;
+	static struct sock_filter insns[] = {
+		BPF_STMT(BPF_LDX|BPF_B|BPF_MSH, 0), /* Skip IP header. F..g BSD... Look into ping6. */
+		BPF_STMT(BPF_LD|BPF_H|BPF_IND, 4), /* Load icmp echo ident */
+		BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, 0xAAAA, 0, 1), /* Ours? */
+		BPF_STMT(BPF_RET|BPF_K, ~0U), /* Yes, it passes. */
+		BPF_STMT(BPF_LD|BPF_B|BPF_IND, 0), /* Load icmp type */
+		BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, ICMP_ECHOREPLY, 1, 0), /* Echo? */
+		BPF_STMT(BPF_RET|BPF_K, 0xFFFFFFF), /* No. It passes. */
+		BPF_STMT(BPF_RET|BPF_K, 0) /* Echo with wrong ident. Reject. */
+	};
+	static struct sock_fprog filter = {
+		sizeof insns / sizeof(insns[0]),
+		insns
+	};
+
+	if (once)
+		return;
+	once = 1;
+
+	/* Patch bpflet for current identifier. */
+	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, __constant_htons(ident), 0, 1);
+
+	if (setsockopt(icmp_sock, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
+		perror("WARNING: failed to install socket filter\n");
+}
+
+
 void usage(void)
 {
 	fprintf(stderr,
-		"Usage: ping [-LRUbdfnqrvV] [-c count] [-i interval] [-w wait]\n\t[-p pattern] [-s packetsize] [-t ttl] [-I interface address]\n\t[ -T timestamp option ] [ -Q tos ] host\n");
+"Usage: ping [-LRUbdfnqrvVaA] [-c count] [-i interval] [-w deadline]\n"
+"            [-p pattern] [-s packetsize] [-t ttl] [-I interface or address]\n"
+"            [-M mtu discovery hint] [-S sndbuf]\n"
+"            [ -T timestamp option ] [ -Q tos ] [hop1 ...] destination\n");
 	exit(2);
 }

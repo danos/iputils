@@ -82,6 +82,8 @@ extern void read_ahead(FILE *file, int convert);
 extern int writeit(FILE *file, struct tftphdr **dpp, int ct, int convert);
 extern int write_behind(FILE *file, int convert);
 extern int synchnet(int f);
+extern struct tftphdr *w_init(void);
+extern struct tftphdr *r_init(void);
 
 
 #endif /* _ARPA_TFTP_H */

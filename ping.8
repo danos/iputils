@@ -1,56 +1,31 @@
-.\" Copyright (c) 1985, 1991 The Regents of the University of California.
-.\" All rights reserved.
-.\"
-.\" Redistribution and use in source and binary forms, with or without
-.\" modification, are permitted provided that the following conditions
-.\" are met:
-.\" 1. Redistributions of source code must retain the above copyright
-.\"    notice, this list of conditions and the following disclaimer.
-.\" 2. Redistributions in binary form must reproduce the above copyright
-.\"    notice, this list of conditions and the following disclaimer in the
-.\"    documentation and/or other materials provided with the distribution.
-.\" 3. All advertising materials mentioning features or use of this software
-.\"    must display the following acknowledgement:
-.\"	This product includes software developed by the University of
-.\"	California, Berkeley and its contributors.
-.\" 4. Neither the name of the University nor the names of its contributors
-.\"    may be used to endorse or promote products derived from this software
-.\"    without specific prior written permission.
-.\"
-.\" THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
-.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
-.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-.\" SUCH DAMAGE.
-.\"
-.\"     from: @(#)ping.8	6.7 (Berkeley) 3/16/91
-.\"	$Id: ping.8,v 1.4 1997/02/01 23:08:04 dholland Exp $
-.\"
-.Dd February 7, 2001
+.Dd August 2, 2001
 .Dt PING 8
-.Os "Iputils Ping"
+.Os "iputils-ss010803"
 .Sh NAME
 .Nm ping
+,
+.Nm ping6
 .Nd send
 .Tn ICMP ECHO_REQUEST
 packets to network hosts
 .Sh SYNOPSIS
 .Nm ping
-.Op Fl dfnqrvR
+.Op Fl LRUbdfnqrvVaA
 .Op Fl c Ar count
-.Op Fl i Ar wait
+.Op Fl i Ar interval
 .Op Fl l Ar preload
 .Op Fl p Ar pattern
 .Op Fl s Ar packetsize
-.Op Fl T Ar option
-.Op Fl I Ar device
-.Op Fl w Ar timeout
+.Op Fl t Ar ttl
+.Op Fl w Ar deadline
+.Op Fl F Ar flowlabel
+.Op Fl I Ar interface
+.Op Fl M Ar hint
+.Op Fl Q Ar tos
+.Op Fl S Ar sndbuf
+.Op Fl T Ar timestamp option
+.Tn [hop1 ...]
+.Tn destination
 .Sh DESCRIPTION
 .Nm Ping
 uses the
@@ -71,46 +46,65 @@ packet.
 The options are as follows:
 Other options are:
 .Bl -tag -width Ds
+.It Fl a
+Audible ping.
+.It Fl A
+Adaptive ping. Interpacket interval adapts to round-trip time, so that
+effectively not more than one (or more, if preload is set) unanswered probes
+present in the network. Minimal interval is 200msec for not super-user.
+On networks with low rtt this mode is essencially equivalent to flood mode.  
+.It Fl b
+Allow pinging a broadcast address.
 .It Fl c Ar count
-Stop after sending (and receiving)
+Stop after sending
 .Ar count
-.Tn ECHO_RESPONSE
-packets.
+.Tn ECHO_REQUEST
+packets. With
+.Ar deadline
+option, ping waits for
+.Ar count
+.Tn ECHO_REPLY
+packets, until the timeout expires.
 .It Fl d
 Set the
 .Dv SO_DEBUG
 option on the socket being used.
+.It Fl F Ar flow label
+Allocate and set 20 bit flow label on echo request packets. (Only ping6).
+If value is zero, kernel allocates random flow label.
 .It Fl f
 Flood ping.
-Outputs packets as fast as they come back or one hundred times per second,
-whichever is more.
 For every
 .Tn ECHO_REQUEST
 sent a period ``.'' is printed, while for ever
 .Tn ECHO_REPLY
 received a backspace is printed.
 This provides a rapid display of how many packets are being dropped.
-Only the super-user may use this option.
-.Bf -emphasis
-This can be very hard on a network and should be used with caution.
-.Ef
-.It Fl i Ar wait
+If interval is not given, it sets interval to zero and
+outputs packets as fast as they come back or one hundred times per second,
+whichever is more.
+Only the super-user may use this option with zero interval.
+.It Fl i Ar interval
 Wait
-.Ar wait
-seconds
-.Em between sending each packet .
-The default is to wait for one second between each packet.
-This option is incompatible with the
-.Fl f
-option.
+.Ar interval
+seconds between sending each packet.
+The default is to wait for one second between each packet normally,
+or not to wait in flood mode. Only super-user may set interval
+to values less 0.2 seconds.
+.It Fl I Ar interface address
+Set source address to specified interface address. Argument
+may be numeric IP address or name of device. When pinging IPv6
+link-local address this option is required.
 .It Fl l Ar preload
 If
 .Ar preload
 is specified,
 .Nm ping
-sends that many packets as fast as possible before falling into its normal
-mode of behavior.
-Only the super-user may use this option.
+sends that many packets not waiting for reply.
+Only the super-user may select preload more than 3.
+.It Fl L
+Suppress loopback of multicast packets.  This flag only applies if the ping
+destination is a multicast address.
 .It Fl n
 Numeric output only.
 No attempt will be made to lookup symbolic names for host addresses.
@@ -121,6 +115,23 @@ For example,
 .Dq Li \-p ff
 will cause the sent packet to be filled with all
 ones.
+.It Fl Q Ar tos
+Set Quality of Service -related bits in ICMP datagrams.  
+.Ar tos
+can be either decimal or hex number. Traditionally (RFC1349), these have been
+interpreted as: 0 for reserved
+(currently being redefined as congestion control), 1-4 for Type of Service
+and 5-7 for Precendence.
+Possible settings for Type of Service are: minimal cost: 0x02, 
+reliability: 0x04, throughput: 0x08, low delay: 0x10.  Multiple TOS bits
+should not be set simultaneously.  Possible settings for
+special Precedence range from priority (0x20) to net control (0xe0).  You
+must be root (CAP_NET_ADMIN capability) to use Critical or higher precendence
+value.  You cannot set
+bit 0x01 (reserved) unless ECN has been enabled in the kernel.
+In RFC2474, these fields has been redefined as 8-bit Differentiated
+Services (DS), consisting of: bits 0-1 of separate data (ECN will be used, here),
+and bits 2-7 of Differentiated Services Codepoint (DSCP).
 .It Fl q
 Quiet output.
 Nothing is displayed except the summary lines at startup time and
@@ -150,24 +161,53 @@ data bytes when combined
 with the 8 bytes of
 .Tn ICMP
 header data.
+.It Fl S Ar sndbuf
+Set socket sndbuf. If not specified, it is selected to buffer
+not more than one packet.
+.It Fl t Ar ttl
+Set the IP Time to Live.
+.It Fl T Ar timestamp option
+Set special IP timestamp options.
+.Ar Timestamp option
+may be either 
+.Ar tsonly
+(only timestamps), 
+.Ar tsandaddr
+(timestamps and addresses), or 
+.Ar tsprespec host1 [host2 [host3 [host4]]]
+(timestamp prespecified hops).
+.It Fl M Ar hint
+Select Path MTU Discovery strategy.
+.Ar hint
+may be either 
+.Ar do
+(prohibit fragmentation, even local one), 
+.Ar want
+(do PMTU discovery, fragment locally when packet size is large), or 
+.Ar dont
+(do not set DF flag).
+.It Fl U
+Print full user-to-user latency (the old behaviour). Normally
+.Nm ping
+prints network round trip time, which can be different
+f.e. due to DNS failures. 
 .It Fl v
 Verbose output.
-.Tn ICMP
-packets other than
-.Tn ECHO_RESPONSE
-that are received are listed.
-.It Fl I Ar device
-Specifies the output interface.
-.It Fl T Ar option
-Send timestamp IP option.
-
-tsonly -- only timestamps
-
-tsandaddr -- timestamps & addresses
-.It Fl w Ar TIMEOUT
-Exit after 
-.Tn TIMEOUT.
-If no replies received, exit with error code.
+.It Fl V
+Show version.
+.It Fl w Ar deadline
+Specify a timeout, in seconds, before
+.Nm ping
+exits regardless of how many
+packets have been sent or received. In this case
+.Nm ping
+does not stop after
+.Ar count
+packet are sent, it waits either for
+.Ar deadline
+expire or until
+.Ar count
+probes are answered or for some error notification from network.   
 .El
 .Pp
 When using
@@ -182,7 +222,9 @@ in calculating the minimum/average/maximum round-trip time numbers.
 When the specified number of packets have been sent (and received) or
 if the program is terminated with a
 .Dv SIGINT ,
-a brief summary is displayed.
+a brief summary is displayed. Shorter current statistics
+can be obtained without termination of process with signal
+.Dv SIGQUIT .
 .Pp
 If 
 .Nm ping

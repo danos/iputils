@@ -28,11 +28,13 @@ And three new ones:
 
 tracepath
 tracepath6
-arping		
+arping
+rarpd		
 
 GENERAL NOTE: all these applets, except for tracepath[6]
-should be excecutabel only with CAP_NET_RAWIO capability.
-To all that I know, they are safe to be used as setuid root.
+should be executed only with CAP_NET_RAWIO capability.
+To all that I know, they are safe to be used as setuid root,
+except for rarpd, of course.
 
 NOTE: IPv4 traceroute is not included here. Look for it
 in ip-routing/lbl-tools directory.

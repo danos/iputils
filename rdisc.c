@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/time.h>
 /* Do not use "improved" glibc version! */
@@ -84,8 +85,6 @@ struct interface
 
 #define ALLIGN(ptr)	(ptr)
 
-static void init(void);
-static void initlog();
 static int join(int sock, struct sockaddr_in *sin);
 static void solicitor(struct sockaddr_in *);
 #ifdef RDISC_SERVER
@@ -94,7 +93,6 @@ static void advertise(struct sockaddr_in *, int lft);
 static char *pr_name(struct in_addr addr);
 static void pr_pack(char *buf, int cc, struct sockaddr_in *from);
 static void age_table(int time);
-static void discard_table();
 static void record_router(struct in_addr router, int preference, int ttl);
 static void add_route(struct in_addr addr);
 static void del_route(struct in_addr addr);
@@ -105,6 +103,9 @@ static int sendmcast(int s, char *packet, int packetlen, struct sockaddr_in *);
 static int sendbcastif(int s, char *packet, int packetlen, struct interface *ifp);
 static int sendmcastif(int s, char *packet, int packetlen, struct sockaddr_in *sin, struct interface *ifp);
 static int is_directly_connected(struct in_addr in);
+static void initlog(void);
+static void discard_table(void);
+static void init(void);
 
 #define ICMP_ROUTER_ADVERTISEMENT	9
 #define ICMP_ROUTER_SOLICITATION	10
@@ -229,14 +230,13 @@ static __inline__ int ismulticast(struct sockaddr_in *sin)
 	return IN_CLASSD(ntohl(sin->sin_addr.s_addr));
 }
 
-static void prusage()
+static void prusage(void)
 {
 	(void) fprintf(stderr, usage);
 	exit(1);
 }
 
-void
-do_fork()
+void do_fork(void)
 {
 	int t;
 	pid_t pid;
@@ -688,7 +688,6 @@ pr_type(int t)
  */
 char *pr_name(struct in_addr addr)
 {
-	char *inet_ntoa();
 	struct hostent *phe;
 	static char buf[80];
 
@@ -1296,7 +1295,7 @@ find_router(struct in_addr addr)
 	return (NULL);
 }
 
-int max_preference()
+int max_preference(void)
 {
 	struct table *tp;
 	int max = (int)INELIGIBLE_PREF;
@@ -1351,8 +1350,7 @@ age_table(int time)
 	}
 }
 
-void
-discard_table()
+void discard_table(void)
 {
 	struct table **tpp, *tp;
 
@@ -1493,8 +1491,7 @@ rtioctl(struct in_addr addr, int op)
  * LOGGER
  */
 
-void
-initlog()
+void initlog(void)
 {
 	logging++;
 	openlog("in.rdiscd", LOG_PID | LOG_CONS, LOG_DAEMON);

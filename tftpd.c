@@ -57,6 +57,7 @@ char copyright[] =
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <linux/in6.h>
 #include <netdb.h>
 
 #include <setjmp.h>
@@ -70,13 +71,12 @@ char copyright[] =
 #include "tftp.h"
 
 #ifndef MSG_CONFIRM
-#define NSG_CONFIRM 0
+#define MSG_CONFIRM 0
 #warning Please, upgrade kernel, otherwise this tftpd has no advantages.
 #endif
 
 #define	TIMEOUT		5
 
-extern	int errno;
 int	peer;
 int	rexmtval = TIMEOUT;
 int	maxtimeout = 5*TIMEOUT;
@@ -84,7 +84,11 @@ int	maxtimeout = 5*TIMEOUT;
 #define	PKTSIZE	SEGSIZE+4
 char	buf[PKTSIZE];
 char	ackbuf[PKTSIZE];
-struct	sockaddr_in from;
+union {
+	struct	sockaddr     sa;
+	struct	sockaddr_in  sin;
+	struct	sockaddr_in6 sin6;
+} from;
 int	fromlen;
 
 #define MAXARG	1
@@ -179,11 +183,10 @@ int main(int ac, char **av)
 			exit(0);
 		}
 	}
-	from.sin_family = AF_INET;
 	alarm(0);
 	close(0);
 	close(1);
-	peer = socket(AF_INET, SOCK_DGRAM, 0);
+	peer = socket(from.sa.sa_family, SOCK_DGRAM, 0);
 	if (peer < 0) {
 		syslog(LOG_ERR, "socket: %m\n");
 		exit(1);
@@ -334,8 +337,7 @@ int	confirmed;
 int	timeout;
 jmp_buf	timeoutbuf;
 
-void
-timer()
+void timer(int signo)
 {
 	confirmed = 0;
 	timeout += rexmtval;
@@ -349,7 +351,7 @@ timer()
  */
 void sendfile(struct formats *pf)
 {
-	struct tftphdr *dp, *r_init();
+	struct tftphdr *dp;
 	register struct tftphdr *ap;    /* ack packet */
 	volatile int block = 1;
 	int size, n;
@@ -409,8 +411,7 @@ abort:
 	(void) fclose(file);
 }
 
-void
-justquit()
+void justquit(int signo)
 {
 	exit(0);
 }
@@ -421,7 +422,7 @@ justquit()
  */
 void recvfile(struct formats *pf)
 {
-	struct tftphdr *dp, *w_init();
+	struct tftphdr *dp;
 	register struct tftphdr *ap;    /* ack buffer */
 	volatile int block = 0, n, size;
 
