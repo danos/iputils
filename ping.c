@@ -62,7 +62,7 @@ char copyright[] =
 
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
-
+#include <net/bpf.h>
 
 #define	MAXIPLEN	60
 #define	MAXICMPLEN	76
@@ -363,7 +363,6 @@ main(int argc, char **argv)
 		exit(2);
 	}
 
-#if 0
 	if (1) {
 		struct icmp_filter filt;
 		filt.data = ~((1<<ICMP_SOURCE_QUENCH)|
@@ -375,7 +374,6 @@ main(int argc, char **argv)
 		if (setsockopt(icmp_sock, SOL_RAW, ICMP_FILTER, (char*)&filt, sizeof(filt)) == -1)
 			perror("WARNING: setsockopt(ICMP_FILTER)");
 	}
-#endif /* 0 */
 	hold = 1;
 	if (setsockopt(icmp_sock, SOL_IP, IP_RECVERR, (char *)&hold, sizeof(hold)))
 		fprintf(stderr, "WARNING: your kernel is veeery old. No problems.\n");
@@ -531,7 +529,6 @@ int receive_error_msg()
 	}
 	if (e == NULL)
 		abort();
-#if 0
 	if (e->ee_origin == SO_EE_ORIGIN_LOCAL) {
 		local_errors++;
 		if (options & F_QUIET)
@@ -580,7 +577,6 @@ int receive_error_msg()
 			fflush(stdout);
 		}
 	}
-#endif
 
 out:
 	errno = saved_errno;
@@ -1160,8 +1156,7 @@ int parsetos(char *str)
 	return(tos);
 }
 
-#if 0
-#include <linux/filter.h>
+/*#include <linux/filter.h>*/
 
 void install_filter(void)
 {
@@ -1186,12 +1181,11 @@ void install_filter(void)
 	once = 1;
 
 	/* Patch bpflet for current identifier. */
-	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, __constant_htons(ident), 0, 1);
-
+	//insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, __constant_htons(ident), 0, 1);
+	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, htons(ident), 0, 1);
 	if (setsockopt(icmp_sock, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
 		perror("WARNING: failed to install socket filter\n");
 }
-#endif /* 0 */
 
 void usage(void)
 {

@@ -69,7 +69,6 @@ char copyright[] =
 #include "ping_common.h"
 
 #include <netinet/ip6.h>
-/* #include <linux/ipv6.h> */
 #include <netinet/icmp6.h>
 #include <bits/socket.h>
 
@@ -599,7 +598,6 @@ int receive_error_msg()
 	if (e == NULL)
 		abort();
 
-#if 0
 	if (e->ee_origin == SO_EE_ORIGIN_LOCAL) {
 		local_errors++;
 		if (options & F_QUIET)
@@ -617,7 +615,7 @@ int receive_error_msg()
 		if (res < sizeof(icmph) ||
 		    memcmp(&target.sin6_addr, &whereto.sin6_addr, 16) ||
 		    icmph.icmp6_type != ICMP6_ECHO_REQUEST ||
-		    icmph.icmp6_identifier != ident) {
+		    icmph.icmp6_id != ident) {
 			/* Not our error, not an error at all. Clear. */
 			saved_errno = 0;
 			goto out;
@@ -630,12 +628,11 @@ int receive_error_msg()
 		if (options & F_FLOOD) {
 			write(STDOUT_FILENO, "\bE", 2);
 		} else {
-			printf("From %s icmp_seq=%u ", pr_addr(&sin6->sin6_addr), icmph.icmp6_sequence);
+			printf("From %s icmp_seq=%u ", pr_addr(&sin6->sin6_addr), icmph.icmp6_seq);
 			pr_icmph(e->ee_type, e->ee_code, e->ee_info);
 			fflush(stdout);
 		}
 	}
-#endif /* 0 */
 
 out:
 	errno = saved_errno;
@@ -766,9 +763,9 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 		}
 		if (nexthdr == IPPROTO_ICMPV6) {
 			if (icmph1->icmp6_type != ICMP6_ECHO_REQUEST ||
-			    icmph1->icmp6_identifier != ident)
+			    icmph1->icmp6_id != ident)
 				return 1;
-			acknowledge(icmph1->icmp6_sequence);
+			acknowledge(icmph1->icmp6_seq);
 			if (working_recverr)
 				return 0;
 			nerrors++;
