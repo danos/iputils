@@ -248,7 +248,8 @@ is large), or <replaceable/dont/ (do not set DF flag).
 Print full user-to-user latency (the old behaviour). Normally
 <command/ping/
 prints network round trip time, which can be different
-f.e. due to DNS failures. 
+f.e. due to DNS failures.  NOTE: This option is currently forced on
+SPARC due to the alternative not working correctly.
   </para></listitem>
  </varlistentry>
  <varlistentry>
