@@ -1,5 +1,5 @@
 # Path to parent kernel include files directory
-KERNEL_INCLUDE=/usr/src/linux/include
+KERNEL_INCLUDE=/usr/include
 LIBC_INCLUDE=/usr/include
 
 DEFINES= 
