@@ -9,7 +9,7 @@ int sndbuf;
 int ttl, loop;
 int rtt;
 int rtt_addend;
-__u16 acked;
+u_int16_t acked;
 
 int mx_dup_ck = MAX_DUP_CHK;
 char rcvd_tbl[MAX_DUP_CHK / 8];
@@ -474,7 +474,7 @@ void setup(int icmp_sock)
 	}
 }
 
-void main_loop(int icmp_sock, __u8 *packet, int packlen)
+void main_loop(int icmp_sock, uint8_t *packet, int packlen)
 {
 	char addrbuf[128];
 	char ans_data[4096];
@@ -600,9 +600,11 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen)
 				not_ours = parse_reply(&msg, cc, addrbuf, recv_timep);
 			}
 
+#if 0
 			/* See? ... someone runs another ping on this host. */ 
 			if (not_ours)
 				install_filter();
+#endif /* 0 */
 
 			/* If nothing is in flight, "break" returns us to pinger. */
 			if (in_flight() == 0)
@@ -617,7 +619,7 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen)
 	finish();
 }
 
-int gather_statistics(__u8 *ptr, int cc, __u16 seq, int hops,
+int gather_statistics(uint8_t *ptr, int cc, u_int16_t seq, int hops,
 		      int csfailed, struct timeval *tv, char *from)
 {
 	int dupflag = 0;
@@ -682,7 +684,7 @@ restamp:
 			write(STDOUT_FILENO, "\bC", 1);
 	} else {
 		int i;
-		__u8 *cp, *dp;
+		uint8_t *cp, *dp;
 		printf("%d bytes from %s: icmp_seq=%u", cc, from, seq);
 
 		if (hops >= 0)

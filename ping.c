@@ -72,7 +72,7 @@ char copyright[] =
 
 static int ts_type;
 static int nroute = 0;
-static __u32 route[10];
+static u_int32_t route[10];
 
 
 
@@ -85,12 +85,12 @@ int maxpacket = sizeof(outpack);
 
 static int broadcast_pings = 0;
 
-static char *pr_addr(__u32);
+static char *pr_addr(u_int32_t);
 static void pr_options(unsigned char * cp, int hlen);
 static void pr_iph(struct iphdr *ip);
 static void usage(void) __attribute__((noreturn));
 static u_short in_cksum(const u_short *addr, int len, u_short salt);
-static void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp);
+static void pr_icmph(uint8_t type, uint8_t code, u_int32_t info, struct icmphdr *icp);
 static int parsetos(char *str);
 
 static struct {
@@ -169,8 +169,8 @@ main(int argc, char **argv)
 
 			if (sscanf(optarg, "%u.%u.%u.%u%c",
 				   &i1, &i2, &i3, &i4, &dummy) == 4) {
-				__u8 *ptr;
-				ptr = (__u8*)&source.sin_addr;
+				uint8_t *ptr;
+				ptr = (uint8_t*)&source.sin_addr;
 				ptr[0] = i1;
 				ptr[1] = i2;
 				ptr[2] = i3;
@@ -363,6 +363,7 @@ main(int argc, char **argv)
 		exit(2);
 	}
 
+#if 0
 	if (1) {
 		struct icmp_filter filt;
 		filt.data = ~((1<<ICMP_SOURCE_QUENCH)|
@@ -374,7 +375,7 @@ main(int argc, char **argv)
 		if (setsockopt(icmp_sock, SOL_RAW, ICMP_FILTER, (char*)&filt, sizeof(filt)) == -1)
 			perror("WARNING: setsockopt(ICMP_FILTER)");
 	}
-
+#endif /* 0 */
 	hold = 1;
 	if (setsockopt(icmp_sock, SOL_IP, IP_RECVERR, (char *)&hold, sizeof(hold)))
 		fprintf(stderr, "WARNING: your kernel is veeery old. No problems.\n");
@@ -402,7 +403,7 @@ main(int argc, char **argv)
 			int i;
 			rspace[1] = 4+nroute*8;
 			for (i=0; i<nroute; i++)
-				*(__u32*)&rspace[4+i*8] = route[i];
+				*(u_int32_t*)&rspace[4+i*8] = route[i];
 		}
 		if (setsockopt(icmp_sock, IPPROTO_IP, IP_OPTIONS, rspace, rspace[1]) < 0) {
 			rspace[3] = 2;
@@ -422,7 +423,7 @@ main(int argc, char **argv)
 		rspace[1+IPOPT_OLEN] = 3 + nroute*4;
 		rspace[1+IPOPT_OFFSET] = IPOPT_MINOFF;
 		for (i=0; i<nroute; i++)
-			*(__u32*)&rspace[4+i*4] = route[i];
+			*(u_int32_t*)&rspace[4+i*4] = route[i];
 		
 		if (setsockopt(icmp_sock, IPPROTO_IP, IP_OPTIONS, rspace, 4 + nroute*4) < 0) {
 			perror("ping: record route");
@@ -530,7 +531,7 @@ int receive_error_msg()
 	}
 	if (e == NULL)
 		abort();
-
+#if 0
 	if (e->ee_origin == SO_EE_ORIGIN_LOCAL) {
 		local_errors++;
 		if (options & F_QUIET)
@@ -579,6 +580,7 @@ int receive_error_msg()
 			fflush(stdout);
 		}
 	}
+#endif
 
 out:
 	errno = saved_errno;
@@ -661,7 +663,7 @@ int
 parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 {
 	struct sockaddr_in *from = addr;
-	__u8 *buf = msg->msg_iov->iov_base;
+	uint8_t *buf = msg->msg_iov->iov_base;
 	struct icmphdr *icp;
 	struct iphdr *ip;
 	int hlen;
@@ -685,7 +687,7 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 	if (icp->type == ICMP_ECHOREPLY) {
 		if (icp->un.echo.id != ident)
 			return 1;			/* 'Twas not our ECHO */
-		if (gather_statistics((__u8*)(icp+1), cc,
+		if (gather_statistics((uint8_t*)(icp+1), cc,
 				      icp->un.echo.sequence,
 				      ip->ttl, 0, tv, pr_addr(from->sin_addr.s_addr)))
 			return 0;
@@ -817,7 +819,7 @@ in_cksum(const u_short *addr, register int len, u_short csum)
  * pr_icmph --
  *	Print a descriptive string about an ICMP header.
  */
-void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp)
+void pr_icmph(uint8_t type, uint8_t code, u_int32_t info, struct icmphdr *icp)
 {
 	switch(type) {
 	case ICMP_ECHOREPLY:
@@ -972,7 +974,7 @@ void pr_options(unsigned char * cp, int hlen)
 			cp++;
 			if (j > IPOPT_MINOFF) {
 				for (;;) {
-					__u32 address;
+					u_int32_t address;
 					memcpy(&address, cp, 4);
 					cp += 4;
 					if (address == 0)
@@ -1007,7 +1009,7 @@ void pr_options(unsigned char * cp, int hlen)
 			printf("\nRR: ");
 			cp++;
 			for (;;) {
-				__u32 address;
+				u_int32_t address;
 				memcpy(&address, cp, 4);
 				cp += 4;
 				if (address == 0)
@@ -1023,7 +1025,7 @@ void pr_options(unsigned char * cp, int hlen)
 		case IPOPT_TS:
 		{
 			int stdtime = 0, nonstdtime = 0;
-			__u8 flags;
+			uint8_t flags;
 			j = *++cp;		/* get length */
 			i = *++cp;		/* and pointer */
 			if (i > j)
@@ -1038,7 +1040,7 @@ void pr_options(unsigned char * cp, int hlen)
 				long l;
 
 				if ((flags&0xF) != IPOPT_TS_TSONLY) {
-					__u32 address;
+					u_int32_t address;
 					memcpy(&address, cp, 4);
 					cp += 4;
 					if (address == 0)
@@ -1116,7 +1118,7 @@ void pr_iph(struct iphdr *ip)
  * a hostname.
  */
 char *
-pr_addr(__u32 addr)
+pr_addr(u_int32_t addr)
 {
 	struct hostent *hp;
 	static char buf[4096];
@@ -1158,6 +1160,7 @@ int parsetos(char *str)
 	return(tos);
 }
 
+#if 0
 #include <linux/filter.h>
 
 void install_filter(void)
@@ -1188,7 +1191,7 @@ void install_filter(void)
 	if (setsockopt(icmp_sock, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
 		perror("WARNING: failed to install socket filter\n");
 }
-
+#endif /* 0 */
 
 void usage(void)
 {

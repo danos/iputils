@@ -4,7 +4,7 @@
 #include <time.h>
 #include <sys/param.h>
 #include <sys/socket.h>
-#include <linux/sockios.h>
+/*#include <linux/sockios.h>*/
 #include <sys/file.h>
 #include <sys/time.h>
 #include <sys/signal.h>
@@ -19,7 +19,7 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <linux/errqueue.h>
+/*#include <linux/errqueue.h>*/
 
 #include "SNAPSHOT.h"
 
@@ -112,7 +112,7 @@ extern long tmax;			/* maximum round trip time */
 extern long long tsum;			/* sum of all times, for doing average */
 extern long long tsum2;
 extern int rtt;
-extern __u16 acked;
+extern u_int16_t acked;
 extern int pipesize;
 
 #define COMMON_OPTIONS \
@@ -163,18 +163,18 @@ static inline int schedule_exit(int next)
 
 static inline int in_flight(void)
 {
-	__u16 diff = (__u16)ntransmitted - acked;
+	u_int16_t diff = (u_int16_t)ntransmitted - acked;
 	return (diff<=0x7FFF) ? diff : ntransmitted-nreceived-nerrors;
 }
 
-static inline void acknowledge(__u16 seq)
+static inline void acknowledge(u_int16_t seq)
 { 
-	__u16 diff = (__u16)ntransmitted - seq;
+	u_int16_t diff = (u_int16_t)ntransmitted - seq;
 	if (diff <= 0x7FFF) {
 		if ((int)diff+1 > pipesize)
 			pipesize = (int)diff+1;
-		if ((__s16)(seq - acked) > 0 ||
-		    (__u16)ntransmitted - acked > 0x7FFF)
+		if ((int16_t)(seq - acked) > 0 ||
+		    (u_int16_t)ntransmitted - acked > 0x7FFF)
 			acked = seq;
 	}
 }
@@ -183,8 +183,8 @@ static inline void advance_ntransmitted(void)
 {
 	ntransmitted++;
 	/* Invalidate acked, if 16 bit seq overflows. */
-	if ((__u16)ntransmitted - acked > 0x7FFF)
-		acked = (__u16)ntransmitted + 1;
+	if ((u_int16_t)ntransmitted - acked > 0x7FFF)
+		acked = (u_int16_t)ntransmitted + 1;
 }
 
 
@@ -196,9 +196,9 @@ extern void install_filter(void);
 extern int pinger(void);
 extern void sock_setbufs(int icmp_sock, int alloc);
 extern void setup(int icmp_sock);
-extern void main_loop(int icmp_sock, __u8 *buf, int buflen) __attribute__((noreturn));
+extern void main_loop(int icmp_sock, uint8_t *buf, int buflen) __attribute__((noreturn));
 extern void finish(void) __attribute__((noreturn));
 extern void status(void);
 extern void common_options(int ch);
-extern int gather_statistics(__u8 *ptr, int cc, __u16 seq, int hops,
+extern int gather_statistics(uint8_t *ptr, int cc, u_int16_t seq, int hops,
 			     int csfailed, struct timeval *tv, char *from);
