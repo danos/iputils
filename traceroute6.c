@@ -588,8 +588,9 @@ int main(int argc, char *argv[])
 			(void) fflush(stdout);
 		}
 		putchar('\n');
-		if (got_there || unreachable >= nprobes-1)
-			exit(0);
+		if (got_there ||
+                    (unreachable > 0 && unreachable >= nprobes - 1))
+		    break;
 	}
 
 	return 0;
