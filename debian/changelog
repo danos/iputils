@@ -1,3 +1,17 @@
+iputils (3:20020124-3) unstable; urgency=medium
+
+  * Added kludge to force -U on ping and ping6 on SPARC, since neither
+    program will report correct times at all otherwise.  This will be fixed
+    correctly at some point in the future, but possibly not before
+    woody's release.  (Closes: Bug#122379)
+  * Fixed a printf error in tracepath6.c that caused some slightly
+    ugly (non zero-padded) output. (Closes: Bug#141300)
+  * Fixed a typo in tracepath.8 (Closes: Bug#135274)
+  * Removed reference to clockdiff(8) from arping.8 since clockdiff
+    is not packaged.
+
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 21 Apr 2002 02:07:55 -0400
+
 iputils (3:20020124-2) unstable; urgency=low
 
   * Added newlines to network error indicators in ping6 
