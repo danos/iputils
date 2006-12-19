@@ -1,3 +1,13 @@
+iputils (3:20020927-3.1) unstable; urgency=low
+
+  * NMU
+  * Use IPV6_RECVHOPLIMIT instead of IPV6_HOPLIMIT in ping6 to build
+    with current kernel headers. Closes: #391601
+  * Explicitly build-depend on the current version of linux-kernel-headers
+    since older ones don't have IPV6_RECVHOPLIMIT.
+
+ -- Joey Hess <joeyh@debian.org>  Sat, 14 Oct 2006 23:48:44 -0400
+
 iputils (3:20020927-3) unstable; urgency=low
 
   * only requst AF_INET address in ping and tracepath, since these

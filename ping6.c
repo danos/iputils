@@ -482,7 +482,7 @@ int main(int argc, char *argv[])
 
 	if (1) {
 		int on = 1;
-		if (setsockopt(icmp_sock, IPPROTO_IPV6, IPV6_HOPLIMIT,
+		if (setsockopt(icmp_sock, IPPROTO_IPV6, IPV6_RECVHOPLIMIT,
 			       &on, sizeof(on)) == -1) {
 			perror ("can't receive hop limit");
 			exit(2);
