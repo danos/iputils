@@ -440,12 +440,6 @@ int main(int argc, char *argv[])
 	/*
 	 *	select icmp echo reply as icmp type to receive
 	 */
-	/* XXX The kernel is problems with the ICMPV6_FILTER stuff
-	   on sparc, so we set it to pass all messages.  The bug
-	   was supposed to be fixed already, but seems to be there
-	   in 2.4.18, at least
-	*/
-#ifndef __sparc__
 	ICMPV6_FILTER_SETBLOCKALL(&filter);
 
 	if (!working_recverr) {
@@ -456,9 +450,6 @@ int main(int argc, char *argv[])
 	}
 
 	ICMPV6_FILTER_SETPASS(ICMPV6_ECHO_REPLY, &filter);
-#else
-	ICMPV6_FILTER_SETPASSALL(&filter);
-#endif /* __sparc__ */
 
 	err = setsockopt(icmp_sock, SOL_ICMPV6, ICMPV6_FILTER, &filter,
 			 sizeof(struct icmp6_filter));

@@ -1,3 +1,20 @@
+iputils (3:20020927-3) unstable; urgency=low
+
+  * only requst AF_INET address in ping and tracepath, since these
+    tools only deal with IPv4 addresses.  (Closes: Bug#305062)
+  * SO_TIMESTAMP is no longer broken on SPARC so its use is no longer
+    disabled.  (Closes: Bug#330909)
+  * Report all valid ICMP response types in ping (Closes: Bug#186745)
+  * Don't print out a bogus and broken statistics line upon exit
+    if using -A and pinging an unresponsive host.  (Closes: Bug#180903)
+  * Provide a somewhat more descriptive warning if CONFIG_FILTER is
+    not supported in the kernel.  This shouldn't matter anymore, since
+    it's always enabled on modern kernels.  (Closes: Bug#139151)
+  * Use debhelper compat level 4.
+  * Move binaries to /usr/bin (Closes: Bug#141799)
+
+ -- Noah Meyerhans <noahm@debian.org>  Sat, 22 Oct 2005 10:54:50 -0400
+
 iputils (3:20020927-2) unstable; urgency=low
 
   * Build system cleanup.  Stop including anything from /usr/src/linux.

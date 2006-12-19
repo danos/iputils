@@ -819,7 +819,8 @@ void finish(void)
 	}
 	if (pipesize > 1)
 		printf(", pipe %d", pipesize);
-	if (ntransmitted > 1 && (!interval || (options&(F_FLOOD|F_ADAPTIVE)))) {
+	if (ntransmitted > 1 && nreceived && 
+			(!interval || (options&(F_FLOOD|F_ADAPTIVE)))) {
 		int ipg = (1000000*(long long)tv.tv_sec+tv.tv_usec)/(ntransmitted-1);
 		printf(", ipg/ewma %d.%03d/%d.%03d ms",
 		       ipg/1000, ipg%1000, rtt/8000, (rtt/8)%1000);
