@@ -4,6 +4,9 @@ iputils (3:20020927-4) unstable; urgency=low
   * Apply patch from Loïc Minier <lool@dooz.org> to fix arping behavior
     when -w and -c command line flags are given and the target host 
     does not reply.  (Closes: Bug#233125)
+  * Provide a netkit-ping package so there's a smooth upgrade path for
+    people who had the old netkit ping implementation installed. 
+    (Closes: Bug#384012)
 
  -- Noah Meyerhans <noahm@csail.mit.edu>  Tue, 19 Dec 2006 16:44:36 -0500
 

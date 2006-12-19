@@ -44,3 +44,11 @@ Description: Tool to send ICMP echo requests to an ARP address
  used to locate a machine if its hardware address is known but its IP
  address is unknown
 
+Package: netkit-ping
+Architecture: any
+Section: net
+Depends: iputils-ping (>= ${Source-Version})
+Description: The ping utility from netkit (transitional package)
+ This is a transitional package to migrate existing users of netkit-inetd
+ to iputils-ping (its successor).  It may be safely removed after upgrading.
+
