@@ -1,3 +1,12 @@
+iputils (3:20020927-4) unstable; urgency=low
+
+  * Acknowledge NMU
+  * Apply patch from Loïc Minier <lool@dooz.org> to fix arping behavior
+    when -w and -c command line flags are given and the target host 
+    does not reply.  (Closes: Bug#233125)
+
+ -- Noah Meyerhans <noahm@csail.mit.edu>  Tue, 19 Dec 2006 16:44:36 -0500
+
 iputils (3:20020927-3.1) unstable; urgency=low
 
   * NMU
