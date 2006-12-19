@@ -1,4 +1,4 @@
-iputils (3:20020927-4) unstable; urgency=low
+iputils (3:20020927-4) unstable; urgency=medium
 
   * Acknowledge NMU
   * Apply patch from Loïc Minier <lool@dooz.org> to fix arping behavior
@@ -11,7 +11,7 @@ iputils (3:20020927-4) unstable; urgency=low
     fix incompatibilities with 2.4 and older 2.6 kernels in ping6 and
     tracepath6.  (Closes: Bug#402121, Bug#397935)
 
- -- Noah Meyerhans <noahm@csail.mit.edu>  Tue, 19 Dec 2006 17:05:27 -0500
+ -- Noah Meyerhans <noahm@debian.org>  Tue, 19 Dec 2006 17:05:27 -0500
 
 iputils (3:20020927-3.1) unstable; urgency=low
 
