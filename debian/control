@@ -49,6 +49,6 @@ Architecture: any
 Section: net
 Depends: iputils-ping (>= ${Source-Version})
 Description: The ping utility from netkit (transitional package)
- This is a transitional package to migrate existing users of netkit-inetd
+ This is a transitional package to migrate existing users of netkit-ping
  to iputils-ping (its successor).  It may be safely removed after upgrading.
 
