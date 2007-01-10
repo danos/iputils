@@ -717,7 +717,7 @@ char * pr_type(unsigned char t)
 
 	if (t >= 128 && t <= 132)
 	{
-		return (ttab2[t]);
+		return (ttab2[t-128]);
 	}
 
 	return("OUT-OF-RANGE");
