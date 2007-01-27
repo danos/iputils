@@ -3,6 +3,10 @@ iputils (3:20020927-5) unstable; urgency=medium
   * fix typo in debian/control entry for netkit-ping
   * Fix error in pr_type where the index into the ttab2 array was off by
     128.  (Closes: Bug#293985)
+  * Fix a bug in ping6.c where the cmsghdr struct associated with a device
+    provided via the -I command line flag would clobber any existing
+    cmsghdrs in cmsgbuf, which would exist of source routing information
+    was provided.
 
  --
 
