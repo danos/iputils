@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "ping: unknown iface %s\n", device);
 			exit(2);
 		}
-		cmsg = (struct cmsghdr*)cmsgbuf+cmsglen;
+		cmsg = (struct cmsghdr*)(cmsgbuf+cmsglen);
 		cmsglen += CMSG_SPACE(sizeof(*ipi));
 		cmsg->cmsg_len = CMSG_LEN(sizeof(*ipi));
 		cmsg->cmsg_level = SOL_IPV6;

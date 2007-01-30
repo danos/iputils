@@ -1,3 +1,11 @@
+iputils (3:20020927-6) unstable; urgency=low
+
+  * Fix an error in the previous version that resulted in the offsets in
+    cmsgbuf still getting set wrong.  (basically I messed up my order of
+    operations and sent pointers flying off into who knows where.  Ooops.)
+
+ --
+
 iputils (3:20020927-5) unstable; urgency=medium
 
   * fix typo in debian/control entry for netkit-ping
