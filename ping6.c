@@ -72,6 +72,14 @@ char copyright[] =
 #include <linux/ipv6.h>
 #include <linux/icmpv6.h>
 
+#ifndef SOL_IPV6
+#define SOL_IPV6 IPPROTO_IPV6
+#endif
+
+#ifndef SOL_ICMPV6
+#define SOL_ICMPV6 IPPROTO_ICMPV6
+#endif
+
 #define BIT_CLEAR(nr, addr) do { ((__u32 *)(addr))[(nr) >> 5] &= ~(1U << ((nr) & 31)); } while(0)
 #define BIT_SET(nr, addr) do { ((__u32 *)(addr))[(nr) >> 5] |= (1U << ((nr) & 31)); } while(0)
 #define BIT_TEST(nr, addr) do { (__u32 *)(addr))[(nr) >> 5] & (1U << ((nr) & 31)); } while(0)
@@ -187,7 +195,10 @@ int main(int argc, char *argv[])
 	socket_errno = errno;
 
 	uid = getuid();
-	setuid(uid);
+	if (setuid(uid)) {
+		perror("ping: setuid");
+		exit(-1);
+	}
 
 	source.sin6_family = AF_INET6;
 	memset(&firsthop, 0, sizeof(firsthop));
@@ -482,8 +493,17 @@ int main(int argc, char *argv[])
 
 	if (1) {
 		int on = 1;
-		if (setsockopt(icmp_sock, IPPROTO_IPV6, IPV6_2292HOPLIMIT,
-			       &on, sizeof(on)) == -1) {
+		if (
+#ifdef IPV6_RECVHOPLIMIT
+		    setsockopt(icmp_sock, IPPROTO_IPV6, IPV6_RECVHOPLIMIT,
+			       &on, sizeof(on)) == -1 &&
+		    setsockopt(icmp_sock, IPPROTO_IPV6, IPV6_2292HOPLIMIT,
+			       &on, sizeof(on)) == -1
+#else
+		    setsockopt(icmp_sock, IPPROTO_IPV6, IPV6_HOPLIMIT,
+			       &on, sizeof(on)) == -1
+#endif
+		   ){
 			perror ("can't receive hop limit");
 			exit(2);
 		}
@@ -699,12 +719,17 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 	int hops = -1;
 
 	for (c = CMSG_FIRSTHDR(msg); c; c = CMSG_NXTHDR(msg, c)) {
-		if (c->cmsg_level != SOL_IPV6 ||
-		    c->cmsg_type != IPV6_2292HOPLIMIT)
+		if (c->cmsg_level != SOL_IPV6)
 			continue;
-		if (c->cmsg_len < CMSG_LEN(sizeof(int)))
-			continue;
-		hops = *(int*)CMSG_DATA(c);
+		switch(c->cmsg_type) {
+		case IPV6_HOPLIMIT:
+#ifdef IPV6_2292HOPLIMIT
+		case IPV6_2292HOPLIMIT:
+#endif
+			if (c->cmsg_len < CMSG_LEN(sizeof(int)))
+				continue;
+			hops = *(int*)CMSG_DATA(c);
+		}
 	}
 
 
@@ -878,7 +903,7 @@ void install_filter(void)
 	once = 1;
 
 	/* Patch bpflet for current identifier. */
-	insns[1] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, __constant_htons(ident), 0, 1);
+	insns[1] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, htons(ident), 0, 1);
 
 	if (setsockopt(icmp_sock, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
 		perror("WARNING: failed to install socket filter\n");

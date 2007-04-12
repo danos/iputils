@@ -875,14 +875,14 @@ pr_pack(char *buf, int cc, struct sockaddr_in *from)
 				((max_adv_int - min_adv_int) 
 				 * (random() % 1000)/1000);
 		} else {
-			if (!is_directly_connected(ip->saddr)) {
+			sin.sin_addr = ip->saddr;
+			if (!is_directly_connected(sin.sin_addr)) {
 				if (verbose)
 					logtrace("ICMP %s from %s: source not directly connected\n",
 						      pr_type((int)icp->type),
 						      pr_name(from->sin_addr));
 				break;
 			}
-			sin.sin_addr.s_addr = ip->saddr;
 		}
 		nreceived++;
 		ntransmitted++;
@@ -1504,5 +1504,5 @@ logperror(char *str)
 	if (logging)
 		syslog(LOG_ERR, "%s: %m", str);
 	else
-		(void) fprintf(stderr, "%s: %s\n", str, sys_errlist[errno]);
+		(void) fprintf(stderr, "%s: %s\n", str, strerror(errno));
 }

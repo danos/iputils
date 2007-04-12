@@ -119,7 +119,10 @@ main(int argc, char **argv)
 	socket_errno = errno;
 
 	uid = getuid();
-	setuid(uid);
+	if (setuid(uid)) {
+		perror("ping: setuid");
+		exit(-1);
+	}
 
 	source.sin_family = AF_INET;
 
@@ -1219,7 +1222,7 @@ void install_filter(void)
 	once = 1;
 
 	/* Patch bpflet for current identifier. */
-	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, __constant_htons(ident), 0, 1);
+	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, htons(ident), 0, 1);
 
 	if (setsockopt(icmp_sock, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
 		perror("WARNING: failed to install socket filter\n");

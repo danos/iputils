@@ -262,6 +262,10 @@ char copyright[] =
 
 #include "SNAPSHOT.h"
 
+#ifndef SOL_IPV6
+#define SOL_IPV6 IPPROTO_IPV6
+#endif
+ 
 #define	MAXPACKET	65535
 #ifndef MAXHOSTNAMELEN
 #define MAXHOSTNAMELEN	64
@@ -281,9 +285,9 @@ char copyright[] =
 
 u_char	packet[512];		/* last inbound (icmp) packet */
 
-int	wait_for_reply(int, struct sockaddr_in6 *, int);
-int	packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
-		  struct timeval *);
+int	wait_for_reply(int, struct sockaddr_in6 *, struct in6_addr *, int);
+int	packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from,
+		  struct in6_addr *to, int seq, struct timeval *);
 void	send_probe(int seq, int ttl);
 double	deltaT (struct timeval *, struct timeval *);
 void	print(unsigned char *buf, int cc, struct sockaddr_in6 *from);
@@ -337,7 +341,10 @@ int main(int argc, char *argv[])
 	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
 	socket_errno = errno;
 
-	setuid(getuid());
+	if (setuid(getuid())) {
+		perror("traceroute6: setuid");
+		exit(-1);
+	}
 
 	on = 1;
 	seq = tos = 0;
@@ -440,15 +447,15 @@ int main(int argc, char *argv[])
 		/* Message for rpm maintainers: have _shame_. If you want
 		 * to fix something send the patch to me for sanity checking.
 		 * "datalen" patch is a shit. */
-		if ((unsigned int)datalen == 0)
+		if (datalen == 0)
 			datalen = sizeof(struct pkt_format);
-	}
-
-	if (datalen < (int)sizeof(struct pkt_format) || datalen >= MAXPACKET) {
-		Fprintf(stderr,
-		    "traceroute: packet size must be %d <= s < %d.\n",
-			(int)sizeof(struct pkt_format), MAXPACKET);
-		exit(1);
+		else if (datalen < (int)sizeof(struct pkt_format) ||
+			 datalen >= MAXPACKET) {
+			Fprintf(stderr,
+			    "traceroute: packet size must be %d <= s < %d.\n",
+				(int)sizeof(struct pkt_format), MAXPACKET);
+			exit(1);
+		}
 	}
 
 	ident = getpid();
@@ -464,6 +471,13 @@ int main(int argc, char *argv[])
 		perror("traceroute6: icmp socket");
 		exit(1);
 	}
+
+#ifdef IPV6_RECVPKTINFO
+	setsockopt(icmp_sock, SOL_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on));
+	setsockopt(icmp_sock, SOL_IPV6, IPV6_2292PKTINFO, &on, sizeof(on));
+#else
+	setsockopt(icmp_sock, SOL_IPV6, IPV6_PKTINFO, &on, sizeof(on));
+#endif
 
 	if (options & SO_DEBUG)
 		setsockopt(icmp_sock, SOL_SOCKET, SO_DEBUG,
@@ -523,7 +537,7 @@ int main(int argc, char *argv[])
 	} else {
 		(void) bzero((char *)&saddr, sizeof(saddr));
 		saddr.sin6_family = AF_INET6;
-		if (inet_pton(AF_INET6, source, &saddr.sin6_addr) < 0)
+		if (inet_pton(AF_INET6, source, &saddr.sin6_addr) <= 0)
 		{
 			Printf("traceroute: unknown addr %s\n", source);
 			exit(1);
@@ -557,14 +571,15 @@ int main(int argc, char *argv[])
 			int cc, reset_timer;
 			struct timeval t1, t2;
 			struct timezone tz;
+			struct in6_addr to;
 
 			gettimeofday(&t1, &tz);
 			send_probe(++seq, ttl);
 			reset_timer = 1;
 
-			while ((cc = wait_for_reply(icmp_sock, &from, reset_timer)) != 0) {
+			while ((cc = wait_for_reply(icmp_sock, &from, &to, reset_timer)) != 0) {
 				gettimeofday(&t2, &tz);
-				if (cc > 0 && (i = packet_ok(packet, cc, &from, seq, &t1))) {
+				if ((i = packet_ok(packet, cc, &from, &to, seq, &t1))) {
 					reset_timer = 1;
 					if (memcmp(&from.sin6_addr, &lastaddr, sizeof(from.sin6_addr))) {
 						print(packet, cc, &from);
@@ -610,15 +625,16 @@ int main(int argc, char *argv[])
 }
 
 int
-wait_for_reply(sock, from, reset_timer)
+wait_for_reply(sock, from, to, reset_timer)
 	int sock;
 	struct sockaddr_in6 *from;
+	struct in6_addr *to;
 	int reset_timer;
 {
 	fd_set fds;
 	static struct timeval wait;
 	int cc = 0;
-	int fromlen = sizeof (*from);
+	char cbuf[512];
 
 	FD_ZERO(&fds);
 	FD_SET(sock, &fds);
@@ -640,8 +656,38 @@ wait_for_reply(sock, from, reset_timer)
 	}
 
 	if (select(sock+1, &fds, (fd_set *)0, (fd_set *)0, &wait) > 0) {
-		cc=recvfrom(icmp_sock, (char *)packet, sizeof(packet), 0,
-			    (struct sockaddr *)from, &fromlen);
+		struct iovec iov;
+		struct msghdr msg;
+		iov.iov_base = packet;
+		iov.iov_len = sizeof(packet);
+		msg.msg_name = (void *)from;
+		msg.msg_namelen = sizeof(*from);
+		msg.msg_iov = &iov;
+		msg.msg_iovlen = 1;
+		msg.msg_flags = 0;
+		msg.msg_control = cbuf;
+		msg.msg_controllen = sizeof(cbuf);
+
+		cc = recvmsg(icmp_sock, &msg, 0);
+		if (cc >= 0) {
+			struct cmsghdr *cmsg;
+			struct in6_pktinfo *ipi;
+
+			for (cmsg = CMSG_FIRSTHDR(&msg);
+			     cmsg;
+			     cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+				if (cmsg->cmsg_level != SOL_IPV6)
+					continue;
+				switch (cmsg->cmsg_type) {
+				case IPV6_PKTINFO:
+#ifdef IPV6_2292PKTINFO
+				case IPV6_2292PKTINFO:
+#endif
+					ipi = (struct in6_pktinfo *)CMSG_DATA(cmsg);
+					memcpy(to, ipi, sizeof(*to));
+				}
+			}
+		}
 	}
 
 	return(cc);
@@ -694,37 +740,60 @@ double deltaT(struct timeval *t1p, struct timeval *t2p)
  */
 char * pr_type(unsigned char t)
 {
-	static char *ttab1[] = {
-		"Error",
-		"Destination Unreachable",
-		"Packet Too Big",
-		"Time Exceeded in Transit",
-		"Parameter Problem"
-	};
-
-	static char *ttab2[] = {
-		"Echo Reply",
-		"Echo Request",
-		"Membership Query",
-		"Membership Report",
-		"Membership Reduction",
-	};
-
-	if (t < 5)
-	{
-		return (ttab1[t]);
-	}
-
-	if (t >= 128 && t <= 132)
-	{
-		return (ttab2[t-128]);
+	switch(t) {
+	/* Unknown */
+	case 0:
+		return "Error";
+	case 1:
+		/* ICMP6_DST_UNREACH: */
+		return "Destination Unreachable";
+	case 2:
+		/* ICMP6_PACKET_TOO_BIG: */
+		return "Packet Too Big";
+	case 3:
+		/* ICMP6_TIME_EXCEEDED */
+		return "Time Exceeded in Transit";
+	case 4:
+		/* ICMP6_PARAM_PROB */
+		return "Parameter Problem";
+	case 128:
+		/* ICMP6_ECHO_REQUEST */
+		return "Echo Request";
+	case 129:
+		/* ICMP6_ECHO_REPLY */
+		return "Echo Reply";
+	case 130:
+		/* ICMP6_MEMBERSHIP_QUERY */
+		return "Membership Query";
+	case 131:
+		/* ICMP6_MEMBERSHIP_REPORT */
+		return "Membership Report";
+	case 132:
+		/* ICMP6_MEMBERSHIP_REDUCTION */
+		return "Membership Reduction";
+	case 133:
+		/* ND_ROUTER_SOLICIT */
+		return "Router Solicitation";
+	case 134:
+		/* ND_ROUTER_ADVERT */
+		return "Router Advertisement";
+	case 135:
+		/* ND_NEIGHBOR_SOLICIT */
+		return "Neighbor Solicitation";
+	case 136:
+		/* ND_NEIGHBOR_ADVERT */
+		return "Neighbor Advertisement";
+	case 137:
+		/* ND_REDIRECT */
+		return "Redirect";
 	}
 
 	return("OUT-OF-RANGE");
 }
 
 
-int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
+int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, 
+	      struct in6_addr *to, int seq,
 	      struct timeval *tv)
 {
 	struct icmp6hdr *icp;
@@ -767,23 +836,31 @@ int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from, int seq,
 	}
 
 	if (verbose) {
-		struct ipv6hdr *hip;
-		__u32 *lp;
+		unsigned char *p;
 		char pa1[MAXHOSTNAMELEN];
 		char pa2[MAXHOSTNAMELEN];
 		int i;
-		hip = (struct ipv6hdr *) (icp + 1);
-		lp = (__u32 *) (icp + 1);
+
+		p = (unsigned char *) (icp + 1);
 
 		Printf("\n%d bytes from %s to %s", cc,
-		       inet_ntop(AF_INET6, &hip->saddr, pa1, sizeof(pa1)),
-		       inet_ntop(AF_INET6, &hip->daddr, pa2, sizeof(pa2)));
+		       inet_ntop(AF_INET6, &from->sin6_addr, pa1, sizeof(pa1)),
+		       inet_ntop(AF_INET6, to, pa2, sizeof(pa2)));
 		
 		Printf(": icmp type %d (%s) code %d\n", type, pr_type(type),
 		       icp->icmp6_code);
 
-		for (i = sizeof(struct ipv6hdr); i < cc ; i += 4)
-			Printf("%2d: x%8.8x\n", i, *lp++);
+		cc -= sizeof(struct icmp6hdr);
+		for (i = 0; i < cc ; i++) {
+			if (i % 16 == 0)
+				Printf("%04x:", i);
+			if (i % 4 == 0)
+				Printf(" ");
+			Printf("%02x", 0xff & (unsigned)p[i]);
+			if (i % 16 == 15 && i + 1 < cc)
+				Printf("\n");
+		}
+		Printf("\n");
 	}
 
 	return(0);
