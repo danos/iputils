@@ -34,7 +34,7 @@ $(MANFILES): index.db
 	@-rm -rf tmp.db2man
 
 fix_sgml2man:
-	@sed -i -e 's/\[ \\fB-n\\fR\]  \\fB\\fIdestination\\fB\\fR \[ \\fB\/\\fIport\\fB\\fR\]/\[\\fB-n\\fR\]  \\fB\\fIdestination\\fB\\fR\[\\fB\/\\fIport\\fB\\fR\]/g' tracepath.8
+	@sed -i -e 's!\\fB\\fIdestination\\fB\\fR \[\\fB/\\fIport\\fB\\fR\]!\\fB\\fIdestination\\fB\\fR[\\fB/\\fIport\\fB\\fR]!g' tracepath.8
 
 clean:
 	@rm -rf $(MANFILES) $(HTMLFILES) iputils.html tmp.db2html tmp.db2man
