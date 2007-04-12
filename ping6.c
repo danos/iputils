@@ -80,6 +80,11 @@ char copyright[] =
 #define SOL_ICMPV6 IPPROTO_ICMPV6
 #endif
 
+/* RFC3542 */
+#ifndef ICMP6_DST_UNREACH_BEYONDSCOPE
+#define ICMP6_DST_UNREACH_BEYONDSCOPE ICMP6_DST_UNREACH_NOTNEIGHBOR
+#endif
+
 #ifndef IPV6_SRCRT_TYPE_0
 #define IPV6_SRCRT_TYPE_0	0
 #endif
@@ -197,10 +202,13 @@ int main(int argc, char *argv[])
 	int ch, hold, packlen;
 	u_char *packet;
 	char *target;
+	struct addrinfo hints, *ai;
+	int gai;
 	struct sockaddr_in6 firsthop;
 	int socket_errno;
 	struct icmp6_filter filter;
 	int err, csum_offset, sz_opt;
+	static uint32_t scope_id = 0;
 
 	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
 	socket_errno = errno;
@@ -263,7 +271,7 @@ int main(int argc, char *argv[])
 	argv += optind;
 
 	while (argc > 1) {
-		struct in6_addr addr;
+		struct in6_addr *addr;
 
 		if (srcrt == NULL) {
 			int space;
@@ -286,22 +294,29 @@ int main(int argc, char *argv[])
 
 		target = *argv;
 
-		if (inet_pton(AF_INET6, target, &addr) <= 0) {
-			struct hostent *hp;
-
-			hp = gethostbyname2(target, AF_INET6);
-
-			if (hp == NULL)	{
-				fprintf(stderr, "unknown host %s\n", target);
-				exit(2);
-			}
-
-			memcpy(&addr, hp->h_addr_list[0], 16);
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_INET6;
+		gai = getaddrinfo(target, NULL, &hints, &ai);
+		if (gai) {
+			fprintf(stderr, "unknown host\n");
+			exit(2);
 		}
-
-		inet6_srcrt_add(srcrt, &addr);
-		if (ipv6_addr_any(&firsthop.sin6_addr))
-			memcpy(&firsthop.sin6_addr, &addr, 16);
+		addr = &((struct sockaddr_in6 *)(ai->ai_addr))->sin6_addr;
+		inet6_srcrt_add(srcrt, addr);
+		if (ipv6_addr_any(&firsthop.sin6_addr)) {
+			memcpy(&firsthop.sin6_addr, addr, 16);
+#ifdef HAVE_SIN6_SCOPEID
+			firsthop.sin6_scope_id = ((struct sockaddr_in6 *)(ai->ai_addr))->sin6_scope_id;
+			/* Verify scope_id is the same as previous nodes */
+			if (firsthop.sin6_scope_id && scope_id && firsthop.sin6_scope_id != scope_id) {
+				fprintf(stderr, "scope discrepancy among the nodes\n");
+				exit(2);
+			} else if (!scope_id) {
+				scope_id = firsthop.sin6_scope_id;
+			}
+#endif
+		}
+		freeaddrinfo(ai);
 
 		argv++;
 		argc--;
@@ -311,31 +326,40 @@ int main(int argc, char *argv[])
 		usage();
 	target = *argv;
 
-	memset(&whereto, 0, sizeof(struct sockaddr_in6));
-	whereto.sin6_family = AF_INET6;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET6;
+	gai = getaddrinfo(target, NULL, &hints, &ai);
+	if (gai) {
+		fprintf(stderr, "unknown host\n");
+		exit(2);
+	}
+
+	memcpy(&whereto, ai->ai_addr, sizeof(whereto));
 	whereto.sin6_port = htons(IPPROTO_ICMPV6);
 
-	if (inet_pton(AF_INET6, target, &whereto.sin6_addr) <= 0) {
-		struct hostent *hp;
-
-		hp = gethostbyname2(target, AF_INET6);
-
-		if (hp == NULL) {
-			fprintf(stderr, "unknown host\n");
-			exit(2);
-		}
-		
-		memcpy(&whereto.sin6_addr, hp->h_addr_list[0], 16);
-	} else {
+	if (memchr(target, ':', strlen(target)))
 		options |= F_NUMERIC;
-	}
-	if (ipv6_addr_any(&firsthop.sin6_addr))
+
+	freeaddrinfo(ai);
+
+	if (ipv6_addr_any(&firsthop.sin6_addr)) {
 		memcpy(&firsthop.sin6_addr, &whereto.sin6_addr, 16);
+#ifdef HAVE_SIN6_SCOPEID
+		firsthop.sin6_scope_id = whereto.sin6_scope_id;
+		/* Verify scope_id is the same as intermediate nodes */
+		if (firsthop.sin6_scope_id && scope_id && firsthop.sin6_scope_id != scope_id) {
+			fprintf(stderr, "scope discrepancy among the nodes\n");
+			exit(2);
+		} else if (!scope_id) {
+			scope_id = firsthop.sin6_scope_id;
+		}
+#endif
+	}
 
 	hostname = target;
 
 	if (ipv6_addr_any(&source.sin6_addr)) {
-		int alen;
+		socklen_t alen;
 		int probe_fd = socket(AF_INET6, SOCK_DGRAM, 0);
 
 		if (probe_fd < 0) {
@@ -828,8 +852,8 @@ int pr_icmph(__u8 type, __u8 code, __u32 info)
 		case ICMP6_DST_UNREACH_ADMIN:
 			printf("Administratively prohibited");
 			break;
-		case ICMP6_DST_UNREACH_NOTNEIGHBOR:
-			printf("Not neighbour");
+		case ICMP6_DST_UNREACH_BEYONDSCOPE:
+			printf("Beyond scope of source address");
 			break;
 		case ICMP6_DST_UNREACH_ADDR:
 			printf("Address unreachable");
