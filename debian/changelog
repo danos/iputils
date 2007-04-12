@@ -1,3 +1,9 @@
+iputils (3:20070202-1) unstable; urgency=low
+
+  * New upstream version (Closes: Bug#285420, Bug#391618)
+
+ --
+
 iputils (3:20020927-6) unstable; urgency=medium
 
   * Fix an error in the previous version that resulted in the offsets in
