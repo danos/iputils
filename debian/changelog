@@ -2,7 +2,10 @@ iputils (3:20070202-1) unstable; urgency=low
 
   * New upstream version (Closes: Bug#285420, Bug#391618, Bug#404199)
   * Fix documentation for tracepath (Closes: Bug#185156)
-
+  * Use alternatives to manage traceroute6 so we can be installed
+    alongside ndisc6. Thanks to Rémi Denis-Courmont for the
+    patch. (Closes: Bug#380677)    
+  
  --
 
 iputils (3:20020927-6) unstable; urgency=medium
