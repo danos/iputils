@@ -5,8 +5,9 @@ iputils (3:20070202-1) unstable; urgency=low
   * Use alternatives to manage traceroute6 so we can be installed
     alongside ndisc6. Thanks to Rémi Denis-Courmont for the
     patch. (Closes: Bug#380677)    
+  * Bump standards version to 3.7.2.2 (no changes needed)
   
- --
+ -- Noah Meyerhans <noahm@debian.org>  Thu, 12 Apr 2007 18:45:01 -0400
 
 iputils (3:20020927-6) unstable; urgency=medium
 
