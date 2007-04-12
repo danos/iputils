@@ -126,7 +126,7 @@ support RDISC, teach them or kill, if they are not teachable.
 
 * tracepath/tracepath6
 
-Usage: tracepath <destination>[<port>]
+Usage: tracepath [-n] <destination>[/<port>]
 
 It traces path to <destination> discovering MTU along this path.
 It uses UDP port <port> or some random port.
