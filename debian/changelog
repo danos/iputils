@@ -1,3 +1,9 @@
+iputils (3:20070202-2) unstable; urgency=low
+
+  * Removed Build-Depends on linux-kernel-headers (Closes: #433279)
+
+ -- Noah Meyerhans <noahm@debian.org>  Mon, 16 Jul 2007 09:58:56 -0400
+
 iputils (3:20070202-1) unstable; urgency=low
 
   * New upstream version (Closes: Bug#285420, Bug#391618, Bug#404199)
