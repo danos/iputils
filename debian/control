@@ -3,7 +3,7 @@ Section: net
 Priority: extra
 Maintainer: Noah Meyerhans <noahm@debian.org>
 Standards-Version: 3.7.2.2
-Build-Depends: debhelper (>> 2), sp, sgmlspl, docbook
+Build-Depends: debhelper (>> 2), sp, sgmlspl, docbook, quilt
 
 Package: iputils-ping
 Architecture: any
