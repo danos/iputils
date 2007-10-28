@@ -435,7 +435,6 @@ void setup(int icmp_sock)
 	if (options & F_SO_DONTROUTE)
 		setsockopt(icmp_sock, SOL_SOCKET, SO_DONTROUTE, (char *)&hold, sizeof(hold));
 
-#ifndef __sparc__ /* XXX SO_TIMESTAMP seems broken on sparc */
 #ifdef SO_TIMESTAMP
 	if (!(options&F_LATENCY)) {
 		int on = 1;
@@ -443,7 +442,6 @@ void setup(int icmp_sock)
 			fprintf(stderr, "Warning: no SO_TIMESTAMP support, falling back to SIOCGSTAMP\n");
 	}
 #endif
-#endif /* __sparc__ */
 
 	/* Set some SNDTIMEO to prevent blocking forever
 	 * on sends, when device is too slow or stalls. Just put limit
@@ -820,8 +818,7 @@ void finish(void)
 	}
 	if (pipesize > 1)
 		printf(", pipe %d", pipesize);
-	if (ntransmitted > 1 && nreceived && 
-			(!interval || (options&(F_FLOOD|F_ADAPTIVE)))) {
+	if (ntransmitted > 1 && (!interval || (options&(F_FLOOD|F_ADAPTIVE)))) {
 		int ipg = (1000000*(long long)tv.tv_sec+tv.tv_usec)/(ntransmitted-1);
 		printf(", ipg/ewma %d.%03d/%d.%03d ms",
 		       ipg/1000, ipg%1000, rtt/8000, (rtt/8)%1000);
@@ -855,3 +852,4 @@ void status(void)
 	}
 	fprintf(stderr, "\n");
 }
+
