@@ -309,9 +309,9 @@ main(int argc, char **argv)
 		base_port = atoi(p+1);
 	} else
 		base_port = 44444;
-	he = gethostbyname2(argv[0], AF_INET);
+	he = gethostbyname(argv[0]);
 	if (he == NULL) {
-		herror("gethostbyname2");
+		herror("gethostbyname");
 		exit(1);
 	}
 	memcpy(&target.sin_addr, he->h_addr, 4);

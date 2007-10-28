@@ -16,7 +16,7 @@ CC=gcc
 CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall -g
 CFLAGS=$(CCOPT) $(GLIBCFIX) $(DEFINES) 
 
-IPV4_TARGETS=tracepath ping arping
+IPV4_TARGETS=tracepath ping clockdiff rdisc arping tftpd rarpd
 IPV6_TARGETS=tracepath6 traceroute6 ping6
 TARGETS=$(IPV4_TARGETS) $(IPV6_TARGETS)
 
@@ -24,6 +24,7 @@ LASTTAG:=`git-describe HEAD | sed -e 's/-.*//'`
 TAG:=`date +s%Y%m%d`
 
 all: $(TARGETS)
+
 
 tftpd: tftpd.o tftpsubs.o
 ping: ping.o ping_common.o
@@ -35,6 +36,7 @@ rdisc_srv: rdisc_srv.o
 
 rdisc_srv.o: rdisc.c
 	$(CC) $(CFLAGS) -DRDISC_SERVER -o rdisc_srv.o rdisc.c
+
 
 check-kernel:
 ifeq ($(KERNEL_INCLUDE),)

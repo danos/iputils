@@ -242,7 +242,7 @@ main(int argc, char **argv)
 			if (argc == 1)
 				options |= F_NUMERIC;
 		} else {
-			hp = gethostbyname2(target, AF_INET);
+			hp = gethostbyname(target);
 			if (!hp) {
 				fprintf(stderr, "ping: unknown host %s\n", target);
 				exit(2);
@@ -383,13 +383,8 @@ main(int argc, char **argv)
 			      (1<<ICMP_PARAMETERPROB)|
 			      (1<<ICMP_REDIRECT)|
 			      (1<<ICMP_ECHOREPLY));
-		if (setsockopt(icmp_sock, SOL_RAW, ICMP_FILTER, 
-				(char*)&filt, sizeof(filt)) == -1)
-		{
+		if (setsockopt(icmp_sock, SOL_RAW, ICMP_FILTER, (char*)&filt, sizeof(filt)) == -1)
 			perror("WARNING: setsockopt(ICMP_FILTER)");
-			fprintf(stderr, 
-				"Do you have CONFIG_SOCKET in your kernel?");
-		}
 	}
 
 	hold = 1;
@@ -863,35 +858,8 @@ void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp)
 		case ICMP_SR_FAILED:
 			printf("Source Route Failed\n");
 			break;
-		case ICMP_NET_UNKNOWN:
-			printf("Destination Net Unknown\n");
-			break;
-		case ICMP_HOST_UNKNOWN:
-			printf("Destination Host Unknown\n");
-			break;
-		case ICMP_HOST_ISOLATED:
-			printf("Source Host Isolated\n");
-			break;
-		case ICMP_NET_ANO:
-			printf("Destination Net Prohibited\n");
-			break;
-		case ICMP_HOST_ANO:
-			printf("Destination Host Prohibited\n");
-			break;
-		case ICMP_NET_UNR_TOS:
-			printf("Destination Net Unreachable for Type of Service\n");
-			break;
-		case ICMP_HOST_UNR_TOS:
-			printf("Destination Host Unreachable for Type of Service\n");
-			break;
 		case ICMP_PKT_FILTERED:
 			printf("Packet filtered\n");
-			break;
-		case ICMP_PREC_VIOLATION:
-			printf("Precedence Violation\n");
-			break;
-		case ICMP_PREC_CUTOFF:
-			printf("Precedence Cutoff\n");
 			break;
 		default:
 			printf("Dest Unreachable, Bad Code: %d\n", code);

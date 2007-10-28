@@ -414,7 +414,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "ping: unknown iface %s\n", device);
 			exit(2);
 		}
-		cmsg = (struct cmsghdr*)(cmsgbuf+cmsglen);
+		cmsg = (struct cmsghdr*)cmsgbuf;
 		cmsglen += CMSG_SPACE(sizeof(*ipi));
 		cmsg->cmsg_len = CMSG_LEN(sizeof(*ipi));
 		cmsg->cmsg_level = SOL_IPV6;
@@ -486,6 +486,7 @@ int main(int argc, char *argv[])
 	/*
 	 *	select icmp echo reply as icmp type to receive
 	 */
+
 	ICMP6_FILTER_SETBLOCKALL(&filter);
 
 	if (!working_recverr) {

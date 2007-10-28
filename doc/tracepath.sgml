@@ -15,9 +15,8 @@ traces path to a network host discovering MTU along this path</refpurpose>
 <refsynopsisdiv>
 <cmdsynopsis>
 <command>tracepath</command>
-<arg choice="opt">-n</arg>
 <arg choice="req"><replaceable/destination/</arg>
-<arg choice="opt">/<replaceable/port/</arg>
+<arg choice="opt"><replaceable/port/</arg>
 </cmdsynopsis>
 </refsynopsisdiv>
 

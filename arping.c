@@ -168,17 +168,12 @@ void catcher(void)
 	if (start.tv_sec==0)
 		start = tv;
 
-	if (timeout && MS_TDIFF(tv,start) > timeout*1000 + 500)
- 		finish();
-
-	if ((!timeout) && (count == 0))
+	if (count-- == 0 || (timeout && MS_TDIFF(tv,start) > timeout*1000 + 500))
 		finish();
- 
-	if ( count!=0  && (last.tv_sec==0 || MS_TDIFF(tv,last) > 500 ) ) {
+
+	if (last.tv_sec==0 || MS_TDIFF(tv,last) > 500) {
 		send_pack(s, src, dst, &me, &he);
-		if (count >= 0)
-			count--;
-		if (count==0 && unsolicited)
+		if (count == 0 && unsolicited)
 			finish();
 	}
 	alarm(1);
