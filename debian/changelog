@@ -1,3 +1,11 @@
+iputils (3:20070202-3) unstable; urgency=low
+
+  * Switch to quilt for managing patches.
+  * Back out custom warning for kernels missing CONFIG_FILTER, since
+    nobody is going to be missing that these days.
+
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 28 Oct 2007 17:54:30 -0400
+
 iputils (3:20070202-2) unstable; urgency=low
 
   * Removed Build-Depends on linux-kernel-headers (Closes: #433279)
