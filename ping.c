@@ -137,7 +137,7 @@ main(int argc, char **argv)
 	while ((ch = getopt(argc, argv, COMMON_OPTSTR "bRT:")) != EOF) {
 		switch(ch) {
 		case 'b':
-		        broadcast_pings = 1;
+			broadcast_pings = 1;
 			break;
 		case 'Q':
 			settos = parsetos(optarg);
@@ -174,6 +174,7 @@ main(int argc, char **argv)
 			break;
 		case 'I':
 		{
+#if 0
 			char dummy;
 			int i1, i2, i3, i4;
 
@@ -189,6 +190,12 @@ main(int argc, char **argv)
 			} else {
 				device = optarg;
 			}
+#else
+			if (inet_pton(AF_INET, optarg, &source.sin_addr) > 0)
+				options |= F_STRICTSOURCE;
+			else
+				device = optarg;
+#endif
 			break;
 		}
 		case 'M':
@@ -216,7 +223,7 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc == 0) 
+	if (argc == 0)
 		usage();
 	if (argc > 1) {
 		if (options & F_RROUTE)
@@ -235,7 +242,7 @@ main(int argc, char **argv)
 	while (argc > 0) {
 		target = *argv;
 
-		bzero((char *)&whereto, sizeof(whereto));
+		memset((char *)&whereto, 0, sizeof(whereto));
 		whereto.sin_family = AF_INET;
 		if (inet_aton(target, &whereto.sin_addr) == 1) {
 			hostname = target;
@@ -393,7 +400,7 @@ main(int argc, char **argv)
 
 	/* record route option */
 	if (options & F_RROUTE) {
-	        bzero(rspace, sizeof(rspace));
+		memset(rspace, 0, sizeof(rspace));
 		rspace[0] = IPOPT_NOP;
 		rspace[1+IPOPT_OPTVAL] = IPOPT_RR;
 		rspace[1+IPOPT_OLEN] = sizeof(rspace)-1;
@@ -405,7 +412,7 @@ main(int argc, char **argv)
 		}
 	}
 	if (options & F_TIMESTAMP) {
-	        bzero(rspace, sizeof(rspace));
+		memset(rspace, 0, sizeof(rspace));
 		rspace[0] = IPOPT_TIMESTAMP;
 		rspace[1] = (ts_type==IPOPT_TS_TSONLY ? 40 : 36);
 		rspace[2] = 5;
@@ -426,8 +433,8 @@ main(int argc, char **argv)
 		optlen = 40;
 	}
 	if (options & F_SOURCEROUTE) {
-	        int i;
-	        bzero(rspace, sizeof(rspace));
+		int i;
+		memset(rspace, 0, sizeof(rspace));
 		rspace[0] = IPOPT_NOOP;
 		rspace[1+IPOPT_OPTVAL] = (options & F_SO_DONTROUTE) ? IPOPT_SSRR
 			: IPOPT_LSRR;
@@ -435,7 +442,7 @@ main(int argc, char **argv)
 		rspace[1+IPOPT_OFFSET] = IPOPT_MINOFF;
 		for (i=0; i<nroute; i++)
 			*(__u32*)&rspace[4+i*4] = route[i];
-		
+
 		if (setsockopt(icmp_sock, IPPROTO_IP, IP_OPTIONS, rspace, 4 + nroute*4) < 0) {
 			perror("ping: record route");
 			exit(2);
@@ -455,7 +462,7 @@ main(int argc, char **argv)
 			perror ("ping: can't set broadcasting");
 			exit(2);
 		}
-        }
+	}
 
 	if (options & F_NOLOOP) {
 		int loop = 0;
@@ -627,7 +634,7 @@ int send_probe()
 			static volatile int fake_fucked_egcs = sizeof(struct timeval);
 			struct timeval tmp_tv;
 			gettimeofday(&tmp_tv, NULL);
-			/* egcs is crap or glibc is crap, but memcpy 
+			/* egcs is crap or glibc is crap, but memcpy
 			   does not copy anything, if len is constant! */
 			memcpy(icp+1, &tmp_tv, fake_fucked_egcs);
 		} else {
@@ -642,15 +649,15 @@ int send_probe()
 
 	if (timing && !(options&F_LATENCY)) {
 		static volatile int fake_fucked_egcs = sizeof(struct timeval);
-	        struct timeval tmp_tv;
+		struct timeval tmp_tv;
 		gettimeofday(&tmp_tv, NULL);
-		/* egcs is crap or glibc is crap, but memcpy 
+		/* egcs is crap or glibc is crap, but memcpy
 		   does not copy anything, if len is constant! */
 		memcpy(icp+1, &tmp_tv, fake_fucked_egcs);
 		icp->checksum = in_cksum((u_short *)(icp+1), fake_fucked_egcs, ~icp->checksum);
 	}
 
-        do {
+	do {
 		static struct iovec iov = {outpack, 0};
 		static struct msghdr m = { &whereto, sizeof(whereto),
 						   &iov, 1, &cmsg, 0, 0 };
@@ -707,8 +714,8 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 		/* We fall here when a redirect or source quench arrived.
 		 * Also this branch processes icmp errors, when IP_RECVERR
 		 * is broken. */
-		   
-	        switch (icp->type) {
+
+		switch (icp->type) {
 		case ICMP_ECHO:
 			/* MUST NOT */
 			return 1;
@@ -762,7 +769,7 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 				pr_icmph(icp->type, icp->code, ntohl(icp->un.gateway), icp);
 				return !error_pkt;
 			}
-	        default:
+		default:
 			/* MUST NOT */
 			break;
 		}
@@ -1009,7 +1016,7 @@ void pr_options(unsigned char * cp, int hlen)
 			if (i <= 0)
 				continue;
 			if (i == old_rrlen
-			    && !bcmp((char *)cp, old_rr, i)
+			    && !strncmp((char *)cp, old_rr, i)
 			    && !(options & F_FLOOD)) {
 				printf("\t(same route)");
 				i = ((i + 3) / 4) * 4;
@@ -1017,7 +1024,7 @@ void pr_options(unsigned char * cp, int hlen)
 				break;
 			}
 			old_rrlen = i;
-			bcopy((char *)cp, old_rr, i);
+			memcpy(old_rr, (char *)cp, i);
 			printf("\nRR: ");
 			cp++;
 			for (;;) {
@@ -1148,27 +1155,27 @@ pr_addr(__u32 addr)
 /* Set Type of Service (TOS) and other Quality of Service relating bits */
 int parsetos(char *str)
 {
-        const char *cp;
-        int tos;
-        char *ep;
+	const char *cp;
+	int tos;
+	char *ep;
 
-        /* handle both hex and decimal values */
-        if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+	/* handle both hex and decimal values */
+	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
 		cp = str + 2;
 		tos = (int)strtol(cp, &ep, 16);
-        } else
-                tos = (int)strtol(str, &ep, 10);
+	} else
+		tos = (int)strtol(str, &ep, 10);
 
-        /* doesn't look like decimal or hex, eh? */
-        if (*ep != '\0') {
-        	fprintf(stderr, "ping: \"%s\" bad value for TOS\n", str);
-        	exit(2);
-        }
+	/* doesn't look like decimal or hex, eh? */
+	if (*ep != '\0') {
+		fprintf(stderr, "ping: \"%s\" bad value for TOS\n", str);
+		exit(2);
+	}
 
-        if (tos > TOS_MAX) {
-        	fprintf(stderr, "ping: the decimal value of TOS bits must be 0-254 (or zero)\n");
-        	exit(2);
-        }
+	if (tos > TOS_MAX) {
+		fprintf(stderr, "ping: the decimal value of TOS bits must be 0-254 (or zero)\n");
+		exit(2);
+	}
 	return(tos);
 }
 

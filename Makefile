@@ -62,7 +62,7 @@ clean:
 	@$(MAKE) -C doc clean
 
 snapshot:
-	@if [ "`uname -n`" != "berry" ]; then echo "Not authorized to advance snapshot"; exit 1; fi
+	@if [ "`uname -n`" != "beatrice" ]; then echo "Not authorized to advance snapshot"; exit 1; fi
 	@date "+[$(TAG)]" > RELNOTES.NEW
 	@echo >>RELNOTES.NEW
 	@git-log $(LASTTAG).. | git-shortlog >> RELNOTES.NEW
@@ -74,5 +74,5 @@ snapshot:
 	@$(MAKE) man
 	@git-commit -a -m "iputils-$(TAG)"
 	@git-tag -s -m "iputils-$(TAG)" $(TAG)
-	@git-tar-tree $(TAG) iputils-$(TAG) | bzip2 -9 > ../iputils-$(TAG).tar.bz2
+	@git-archive --format=tar --prefix=iputils-$(TAG)/ $(TAG) | bzip2 -9 > ../iputils-$(TAG).tar.bz2
 

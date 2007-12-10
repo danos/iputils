@@ -30,6 +30,10 @@
 #define SOL_IPV6 IPPROTO_IPV6
 #endif
 
+#ifndef IPV6_PMTUDISC_PROBE
+#define IPV6_PMTUDISC_PROBE	3
+#endif
+
 int overhead = 48;
 int mtu = 128000;
 int hops_to = -1;
@@ -172,19 +176,6 @@ restart:
 		}
 	}
 
-	if (rethops>=0) {
-		if (rethops<=64)
-			rethops = 65-rethops;
-		else if (rethops<=128)
-			rethops = 129-rethops;
-		else
-			rethops = 256-rethops;
-		if (sndhops>=0 && rethops != sndhops)
-			printf("asymm %2d ", rethops);
-		else if (sndhops<0 && rethops != ttl)
-			printf("asymm %2d ", rethops);
-	}
-
 	if (rettv) {
 		int diff = (tv.tv_sec-rettv->tv_sec)*1000000+(tv.tv_usec-rettv->tv_usec);
 		printf("%3d.%03dms ", diff/1000, diff%1000);
@@ -216,6 +207,18 @@ restart:
 		    (e->ee_origin == SO_EE_ORIGIN_ICMP6 &&
 		     e->ee_type == 3 &&
 		     e->ee_code == 0)) {
+			if (rethops>=0) {
+				if (rethops<=64)
+					rethops = 65-rethops;
+				else if (rethops<=128)
+					rethops = 129-rethops;
+				else
+					rethops = 256-rethops;
+				if (sndhops>=0 && rethops != sndhops)
+					printf("asymm %2d ", rethops);
+				else if (sndhops<0 && rethops != ttl)
+					printf("asymm %2d ", rethops);
+			}
 			printf("\n");
 			break;
 		}
@@ -280,7 +283,7 @@ static void usage(void) __attribute((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: tracepath6 [-n] [-b] <destination>[/<port>]\n");
+	fprintf(stderr, "Usage: tracepath6 [-n] [-b] [-l <len>] <destination>[/<port>]\n");
 	exit(-1);
 }
 
@@ -297,13 +300,19 @@ int main(int argc, char **argv)
 	int gai;
 	char pbuf[NI_MAXSERV];
 
-	while ((ch = getopt(argc, argv, "nbh?")) != EOF) {
+	while ((ch = getopt(argc, argv, "nbh?l:")) != EOF) {
 		switch(ch) {
-		case 'n':	
+		case 'n':
 			no_resolve = 1;
 			break;
-		case 'b':	
+		case 'b':
 			show_both = 1;
+			break;
+		case 'l':
+			if ((mtu = atoi(optarg)) <= overhead) {
+				fprintf(stderr, "Error: length must be >= %d\n", overhead);
+				exit(1);
+			}
 			break;
 		default:
 			usage();
@@ -317,7 +326,7 @@ int main(int argc, char **argv)
 		usage();
 
 	memset(&sin, 0, sizeof(sin));
-	
+
 	p = strchr(argv[0], '/');
 	if (p) {
 		*p = 0;
@@ -363,8 +372,10 @@ int main(int argc, char **argv)
 		mapped = 1;
 	}
 
-	on = IPV6_PMTUDISC_DO;
-	if (setsockopt(fd, SOL_IPV6, IPV6_MTU_DISCOVER, &on, sizeof(on))) {
+	on = IPV6_PMTUDISC_PROBE;
+	if (setsockopt(fd, SOL_IPV6, IPV6_MTU_DISCOVER, &on, sizeof(on)) &&
+	    (on = IPV6_PMTUDISC_DO,
+	     setsockopt(fd, SOL_IPV6, IPV6_MTU_DISCOVER, &on, sizeof(on)))) {
 		perror("IPV6_MTU_DISCOVER");
 		exit(1);
 	}
@@ -411,8 +422,14 @@ int main(int argc, char **argv)
 			exit(1);
 		}
 
+restart:
 		for (i=0; i<3; i++) {
+			int old_mtu;
+
+			old_mtu = mtu;
 			res = probe_ttl(fd, ttl);
+			if (mtu != old_mtu)
+				goto restart;
 			if (res == 0)
 				goto done;
 			if (res > 0)

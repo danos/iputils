@@ -24,6 +24,10 @@
 #include <sys/uio.h>
 #include <arpa/inet.h>
 
+#ifndef IP_PMTUDISC_PROBE
+#define IP_PMTUDISC_PROBE	3
+#endif
+
 struct hhistory
 {
 	int	hops;
@@ -76,7 +80,7 @@ int recverr(int fd, int ttl)
 	int sndhops;
 	int progress = -1;
 	int broken_router;
-	
+
 restart:
 	memset(&rcvbuf, -1, sizeof(rcvbuf));
 	iov.iov_base = &rcvbuf;
@@ -125,8 +129,8 @@ restart:
 				e = (struct sock_extended_err *) CMSG_DATA(cmsg);
 			} else if (cmsg->cmsg_type == IP_TTL) {
 				rethops = *(int*)CMSG_DATA(cmsg);
-			} else { 
-				printf("cmsg:%d\n ", cmsg->cmsg_type); 
+			} else {
+				printf("cmsg:%d\n ", cmsg->cmsg_type);
 			}
 		}
 	}
@@ -159,19 +163,6 @@ restart:
 		}
 	}
 
-	if (rethops>=0) {
-		if (rethops<=64)
-			rethops = 65-rethops;
-		else if (rethops<=128)
-			rethops = 129-rethops;
-		else
-			rethops = 256-rethops;
-		if (sndhops>=0 && rethops != sndhops)
-			printf("asymm %2d ", rethops);
-		else if (sndhops<0 && rethops != ttl)
-			printf("asymm %2d ", rethops);
-	}
-
 	if (rettv) {
 		int diff = (tv.tv_sec-rettv->tv_sec)*1000000+(tv.tv_usec-rettv->tv_usec);
 		printf("%3d.%03dms ", diff/1000, diff%1000);
@@ -200,6 +191,18 @@ restart:
 		if (e->ee_origin == SO_EE_ORIGIN_ICMP &&
 		    e->ee_type == 11 &&
 		    e->ee_code == 0) {
+			if (rethops>=0) {
+				if (rethops<=64)
+					rethops = 65-rethops;
+				else if (rethops<=128)
+					rethops = 129-rethops;
+				else
+					rethops = 256-rethops;
+				if (sndhops>=0 && rethops != sndhops)
+					printf("asymm %2d ", rethops);
+				else if (sndhops<0 && rethops != ttl)
+					printf("asymm %2d ", rethops);
+			}
 			printf("\n");
 			break;
 		}
@@ -265,7 +268,7 @@ static void usage(void) __attribute((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: tracepath [-n] <destination>[/<port>]\n");
+	fprintf(stderr, "Usage: tracepath [-n] [-l <len>] <destination>[/<port>]\n");
 	exit(-1);
 }
 
@@ -279,10 +282,16 @@ main(int argc, char **argv)
 	char *p;
 	int ch;
 
-	while ((ch = getopt(argc, argv, "nh?")) != EOF) {
+	while ((ch = getopt(argc, argv, "nh?l:")) != EOF) {
 		switch(ch) {
-		case 'n':	
+		case 'n':
 			no_resolve = 1;
+			break;
+		case 'l':
+			if ((mtu = atoi(optarg)) <= overhead) {
+				fprintf(stderr, "Error: length must be >= %d\n", overhead);
+				exit(1);
+			}
 			break;
 		default:
 			usage();
@@ -316,8 +325,10 @@ main(int argc, char **argv)
 	}
 	memcpy(&target.sin_addr, he->h_addr, 4);
 
-	on = IP_PMTUDISC_DO;
-	if (setsockopt(fd, SOL_IP, IP_MTU_DISCOVER, &on, sizeof(on))) {
+	on = IP_PMTUDISC_PROBE;
+	if (setsockopt(fd, SOL_IP, IP_MTU_DISCOVER, &on, sizeof(on)) &&
+	    (on = IP_PMTUDISC_DO,
+	     setsockopt(fd, SOL_IP, IP_MTU_DISCOVER, &on, sizeof(on)))) {
 		perror("IP_MTU_DISCOVER");
 		exit(1);
 	}
@@ -341,8 +352,14 @@ main(int argc, char **argv)
 			exit(1);
 		}
 
+restart:
 		for (i=0; i<3; i++) {
+			int old_mtu;
+
+			old_mtu = mtu;
 			res = probe_ttl(fd, ttl);
+			if (mtu != old_mtu)
+				goto restart;
 			if (res == 0)
 				goto done;
 			if (res > 0)

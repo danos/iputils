@@ -51,7 +51,7 @@ struct iflink
 	int	       	index;
 	int		hatype;
 	unsigned char	lladdr[16];
-	unsigned char	name[IFNAMSIZ];
+	char		name[IFNAMSIZ];
 	struct ifaddr 	*ifa_list;
 } *ifl_list;
 
@@ -67,11 +67,11 @@ struct rarp_map
 {
 	struct rarp_map *next;
 
-	int	ifindex;
-	int	arp_type;
-	int	lladdr_len;
-	char	lladdr[16];
-	__u32	ipaddr;
+	int		ifindex;
+	int		arp_type;
+	int		lladdr_len;
+	unsigned char	lladdr[16];
+	__u32		ipaddr;
 } *rarp_db;
 
 void usage()
@@ -547,7 +547,7 @@ void catch_signal(int sig, void (*handler)(int))
 	sa.sa_handler = handler;
 #ifdef SA_INTERRUPT
 	sa.sa_flags = SA_INTERRUPT;
-#endif	
+#endif
 	sigaction(sig, &sa, NULL);
 }
 
@@ -611,7 +611,7 @@ int main(int argc, char **argv)
 	psize = 1;
 	pset[0].fd = socket(PF_PACKET, SOCK_DGRAM, 0);
 
-        if (ifname) {
+	if (ifname) {
 		struct ifreq ifr;
 		memset(&ifr, 0, sizeof(ifr));
 		strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
