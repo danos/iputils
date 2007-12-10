@@ -1,3 +1,9 @@
+iputils (UNRELEASED) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 09 Dec 2007 21:50:33 -0500
+
 iputils (3:20070202-3) unstable; urgency=low
 
   * Switch to quilt for managing patches.
