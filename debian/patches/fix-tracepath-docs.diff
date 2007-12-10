@@ -1,7 +1,7 @@
 Index: iputils/doc/Makefile
 ===================================================================
---- iputils.orig/doc/Makefile	2007-10-28 15:35:24.000000000 -0400
-+++ iputils/doc/Makefile	2007-10-28 15:37:41.000000000 -0400
+--- iputils.orig/doc/Makefile	2007-10-28 17:27:31.000000000 -0400
++++ iputils/doc/Makefile	2007-12-09 21:01:24.000000000 -0500
 @@ -6,7 +6,7 @@
  
  html: $(HTMLFILES) iputils.html
@@ -20,19 +20,4 @@ Index: iputils/doc/Makefile
 +
  clean:
  	@rm -rf $(MANFILES) $(HTMLFILES) iputils.html tmp.db2html tmp.db2man
- 
-Index: iputils/doc/tracepath.sgml
-===================================================================
---- iputils.orig/doc/tracepath.sgml	2007-10-28 15:39:06.000000000 -0400
-+++ iputils/doc/tracepath.sgml	2007-10-28 15:39:13.000000000 -0400
-@@ -15,8 +15,9 @@
- <refsynopsisdiv>
- <cmdsynopsis>
- <command>tracepath</command>
-+<arg choice="opt">-n</arg>
- <arg choice="req"><replaceable/destination/</arg>
--<arg choice="opt"><replaceable/port/</arg>
-+<arg choice="opt">/<replaceable/port/</arg>
- </cmdsynopsis>
- </refsynopsisdiv>
  
