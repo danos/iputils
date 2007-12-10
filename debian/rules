@@ -3,9 +3,6 @@
 # Uncomment this to turn on verbose mode. 
 #export DH_VERBOSE=1
 
-# This is the debhelper compatability version to use.
-export DH_COMPAT=4
-
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
 
@@ -32,7 +29,7 @@ clean: unpatch
 	dh_testdir
 	dh_testroot
 
-	-$(MAKE) clean
+	$(MAKE) clean
 	dh_clean
 	-test -e .pc/applied-patches && quilt pop -a
 	test ! -e .pc/applied-patches && rm -rf .pc

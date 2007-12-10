@@ -49,7 +49,7 @@ Description: Tool to send ICMP echo requests to an ARP address
 Package: netkit-ping
 Architecture: any
 Section: net
-Depends: iputils-ping (>= ${Source-Version})
+Depends: iputils-ping (>= ${binary:Version})
 Description: The ping utility from netkit (transitional package)
  This is a transitional package to migrate existing users of netkit-ping
  to iputils-ping (its successor).  It may be safely removed after upgrading.

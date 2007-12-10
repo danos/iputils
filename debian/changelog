@@ -2,9 +2,13 @@ iputils (3:20071127-1) unstable; urgency=low
 
   * New upstream release.
   * Add Vcs-Browser and Vcs-Svn to debian/control
-  * Update to standards version 3.7.3.0 (no changes needed)
+  * Update to standards version 3.7.3.0
+  * Stop ignoring the return value of "make clean" in debian/rules
+  * Switch from debrecated Source-Version to binary:Version in
+    netkit-ping dependencies.
+  * Move debconf compat setting from debian/rules to debian/compat
 
- -- Noah Meyerhans <noahm@debian.org>  Sun, 09 Dec 2007 22:32:14 -0500
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 09 Dec 2007 22:47:52 -0500
 
 iputils (3:20070202-3) unstable; urgency=low
 
