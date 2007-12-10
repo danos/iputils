@@ -1,8 +1,10 @@
 iputils (UNRELEASED) unstable; urgency=low
 
   * New upstream release.
+  * Add Vcs-Browser and Vcs-Svn to debian/control
+  * Update to standards version 3.7.3.0 (no changes needed)
 
- -- Noah Meyerhans <noahm@debian.org>  Sun, 09 Dec 2007 21:50:33 -0500
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 09 Dec 2007 22:30:45 -0500
 
 iputils (3:20070202-3) unstable; urgency=low
 

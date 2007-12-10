@@ -2,8 +2,10 @@ Source: iputils
 Section: net
 Priority: extra
 Maintainer: Noah Meyerhans <noahm@debian.org>
-Standards-Version: 3.7.2.2
+Standards-Version: 3.7.3.0
 Build-Depends: debhelper (>> 2), sp, sgmlspl, docbook, quilt
+Vcs-Svn: svn+https://svn.csail.mit.edu/iputils
+Vcs-Browser: https://svn.csail.mit.edu/iputils
 
 Package: iputils-ping
 Architecture: any
