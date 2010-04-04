@@ -3,7 +3,7 @@ Section: net
 Priority: extra
 Maintainer: Noah Meyerhans <noahm@debian.org>
 Standards-Version: 3.8.4.0
-Build-Depends: debhelper (>> 2), sp, sgmlspl, docbook, quilt
+Build-Depends: debhelper (>> 2), sp, sgmlspl, docbook
 Vcs-Svn: svn+https://svn.csail.mit.edu/iputils
 Vcs-Browser: https://svn.csail.mit.edu/iputils
 

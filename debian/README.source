@@ -1,9 +1,0 @@
-Debian-specific modifications are found in debian/patches in the source
-directory and are applied *at*build*time* by the "debian/rules patch"
-makefile rule.  Make sure you apply all these patches if you're trying
-to look at the source to the actual binaries included on a Debian
-system.
-
-This package will be converted to a dpkg-source 3.0 (quilt) format at
-some point in the future.
-

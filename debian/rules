@@ -6,17 +6,7 @@
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
 
-patch: patch-stamp
-patch-stamp:
-	dh_testdir
-	QUILT_PATCHES=debian/patches quilt push -a || test $$? = 2
-	touch patch-stamp
-
-unpatch:
-	QUILT_PATCHES=debian/patches quilt pop -a -R || test $$? = 2
-	rm -rf .pc patch-stamp
-
-configure: patch
+configure:
 	dh_testdir
 
 build: configure
@@ -25,15 +15,12 @@ build: configure
 	$(MAKE)
 	$(MAKE) -C doc man
 
-clean: unpatch
+clean:
 	dh_testdir
 	dh_testroot
 
 	$(MAKE) clean
 	dh_clean
-	-test -e .pc/applied-patches && quilt pop -a
-	test ! -e .pc/applied-patches && rm -rf .pc
-	rm -rf .pc
 
 install: DH_OPTIONS=
 install: build
