@@ -1,8 +1,9 @@
 iputils (3:20100214-1) unstable; urgency=low
 
   * New upstream release.
+  * Add a README.source file as recommended by policy 3.8.0.0.
 
- -- Noah Meyerhans <noahm@debian.org>  Sat, 03 Apr 2010 23:43:33 -0700
+ -- Noah Meyerhans <noahm@debian.org>  Sat, 03 Apr 2010 23:51:27 -0700
 
 iputils (3:20071127-1) unstable; urgency=low
 
