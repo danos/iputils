@@ -4,6 +4,7 @@
 
 int options;
 
+int mark;
 int sndbuf;
 int ttl;
 int rtt;
@@ -114,6 +115,9 @@ void common_options(int ch)
 	case 'd':
 		options |= F_SO_DEBUG;
 		break;
+	case 'D':
+		options |= F_PTIMEOFDAY;
+		break;
 	case 'f':
 		options |= F_FLOOD;
 		setbuf(stdout, (char *)NULL);
@@ -139,6 +143,17 @@ void common_options(int ch)
 			exit(2);
 		}
 		options |= F_INTERVAL;
+		break;
+	}
+	case 'm':
+	{
+		char *endp;
+		mark = (int)strtoul(optarg, &endp, 10);
+		if (mark < 0 || *endp != '\0') {
+			fprintf(stderr, "mark cannot be negative");
+			exit(2);
+		}
+		options |= F_MARK;
 		break;
 	}
 	case 'w':
@@ -269,6 +284,19 @@ static inline void update_interval(void)
 	interval = (est+rtt_addend+500)/1000;
 	if (uid && interval < MINUSERINTERVAL)
 		interval = MINUSERINTERVAL;
+}
+
+/*
+ * Print timestamp
+ */
+void print_timestamp(void)
+{
+	if (options & F_PTIMEOFDAY) {
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		printf("[%lu.%06lu] ",
+		       (unsigned long)tv.tv_sec, (unsigned long)tv.tv_usec);
+	}
 }
 
 /*
@@ -442,6 +470,15 @@ void setup(int icmp_sock)
 			fprintf(stderr, "Warning: no SO_TIMESTAMP support, falling back to SIOCGSTAMP\n");
 	}
 #endif
+	if (options & F_MARK) {
+		if (setsockopt(icmp_sock, SOL_SOCKET, SO_MARK,
+				&mark, sizeof(mark)) == -1) {
+			/* we probably dont wanna exit since old kernels
+			 * dont support mark ..
+			*/
+			fprintf(stderr, "Warning: Failed to set mark %d\n", mark);
+		}
+	}
 
 	/* Set some SNDTIMEO to prevent blocking forever
 	 * on sends, when device is too slow or stalls. Just put limit
@@ -473,7 +510,7 @@ void setup(int icmp_sock)
 			*p++ = i;
 	}
 
-	ident = getpid() & 0xFFFF;
+	ident = htons(getpid() & 0xFFFF);
 
 	set_signal(SIGINT, sigexit);
 	set_signal(SIGALRM, sigexit);
@@ -711,6 +748,8 @@ restamp:
 	} else {
 		int i;
 		__u8 *cp, *dp;
+
+		print_timestamp();
 		printf("%d bytes from %s: icmp_seq=%u", cc, from, seq);
 
 		if (hops >= 0)
@@ -780,6 +819,7 @@ static long llsqrt(long long a)
 void finish(void)
 {
 	struct timeval tv = cur_time;
+	char *comma = "";
 
 	tvsub(&tv, &start_time);
 
@@ -815,13 +855,16 @@ void finish(void)
 		       (long)tmax/1000, (long)tmax%1000,
 		       (long)tmdev/1000, (long)tmdev%1000
 		       );
+		comma = ", ";
 	}
-	if (pipesize > 1)
-		printf(", pipe %d", pipesize);
+	if (pipesize > 1) {
+		printf("%spipe %d", comma, pipesize);
+		comma = ", ";
+	}
 	if (ntransmitted > 1 && (!interval || (options&(F_FLOOD|F_ADAPTIVE)))) {
 		int ipg = (1000000*(long long)tv.tv_sec+tv.tv_usec)/(ntransmitted-1);
-		printf(", ipg/ewma %d.%03d/%d.%03d ms",
-		       ipg/1000, ipg%1000, rtt/8000, (rtt/8)%1000);
+		printf("%sipg/ewma %d.%03d/%d.%03d ms",
+		       comma, ipg/1000, ipg%1000, rtt/8000, (rtt/8)%1000);
 	}
 	putchar('\n');
 	exit(!nreceived || (deadline && nreceived < npackets));

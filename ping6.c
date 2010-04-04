@@ -125,6 +125,9 @@ char copyright[] =
 #define HAVE_SIN6_SCOPEID 1
 #endif
 
+#ifndef SCOPE_DELIMITER
+# define SCOPE_DELIMITER '%'
+#endif
 
 __u32 flowlabel;
 __u32 tclass;
@@ -197,6 +200,16 @@ int inet6_srcrt_add(struct cmsghdr *cmsg, const struct in6_addr *addr)
 	return 0;
 }
 
+unsigned int if_name2index(const char *ifname)
+{
+	unsigned int i = if_nametoindex(ifname);
+	if (!i) {
+		fprintf(stderr, "ping: unknown iface %s\n", ifname);
+		exit(2);
+	}
+	return i;
+}
+
 int main(int argc, char *argv[])
 {
 	int ch, hold, packlen;
@@ -207,7 +220,10 @@ int main(int argc, char *argv[])
 	struct sockaddr_in6 firsthop;
 	int socket_errno;
 	struct icmp6_filter filter;
-	int err, csum_offset, sz_opt;
+	int err;
+#ifdef __linux__
+	int csum_offset, sz_opt;
+#endif
 	static uint32_t scope_id = 0;
 
 	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
@@ -236,11 +252,27 @@ int main(int argc, char *argv[])
 			break;
 		case 'I':
 			if (strchr(optarg, ':')) {
-				if (inet_pton(AF_INET6, optarg, (char*)&source.sin6_addr) <= 0) {
+				char *p, *addr = strdup(optarg);
+
+				if (!addr) {
+					fprintf(stderr, "ping: out of memory\n");
+					exit(2);
+				}
+
+				p = strchr(addr, SCOPE_DELIMITER);
+				if (p) {
+					*p = '\0';
+					device = optarg + (p - addr) + 1;
+				}
+
+				if (inet_pton(AF_INET6, addr, (char*)&source.sin6_addr) <= 0) {
 					fprintf(stderr, "ping: invalid source address %s\n", optarg);
 					exit(2);
 				}
+
 				options |= F_STRICTSOURCE;
+
+				free(addr);
 			} else {
 				device = optarg;
 			}
@@ -367,20 +399,27 @@ int main(int argc, char *argv[])
 			exit(2);
 		}
 		if (device) {
-			struct ifreq ifr;
-			memset(&ifr, 0, sizeof(ifr));
-			strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
-			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
-#ifdef HAVE_SIN6_SCOPEID
-				if (IN6_IS_ADDR_LINKLOCAL(&firsthop.sin6_addr) ||
-				    IN6_IS_ADDR_MC_LINKLOCAL(&firsthop.sin6_addr)) {
-					if (ioctl(probe_fd, SIOCGIFINDEX, &ifr) < 0) {
-						fprintf(stderr, "ping: unknown iface %s\n", device);
-						exit(2);
-					}
-					firsthop.sin6_scope_id = ifr.ifr_ifindex;
-				}
+#if defined(IPV6_RECVPKTINFO) || defined(HAVE_SIN6_SCOPEID)
+			unsigned int iface = if_name2index(device);
 #endif
+#ifdef IPV6_RECVPKTINFO
+			struct in6_pktinfo ipi;
+
+			memset(&ipi, 0, sizeof(ipi));
+			ipi.ipi6_ifindex = iface;
+#endif
+
+#ifdef HAVE_SIN6_SCOPEID
+			if (IN6_IS_ADDR_LINKLOCAL(&firsthop.sin6_addr) ||
+			    IN6_IS_ADDR_MC_LINKLOCAL(&firsthop.sin6_addr))
+				firsthop.sin6_scope_id = iface;
+#endif
+			if (
+#ifdef IPV6_RECVPKTINFO
+			    setsockopt(probe_fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof(ipi)) == -1 &&
+#endif
+			    setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
+				perror("setsockopt(SO_BINDTODEVICE)");
 			}
 		}
 		firsthop.sin6_port = htons(1025);
@@ -396,6 +435,11 @@ int main(int argc, char *argv[])
 		source.sin6_port = 0;
 		close(probe_fd);
 	}
+#ifdef HAVE_SIN6_SCOPEID
+	else if (device && (IN6_IS_ADDR_LINKLOCAL(&source.sin6_addr) ||
+			    IN6_IS_ADDR_MC_LINKLOCAL(&source.sin6_addr)))
+		source.sin6_scope_id = if_name2index(device);
+#endif
 
 	if (icmp_sock < 0) {
 		errno = socket_errno;
@@ -404,17 +448,10 @@ int main(int argc, char *argv[])
 	}
 
 	if (device) {
-		struct ifreq ifr;
 		struct cmsghdr *cmsg;
 		struct in6_pktinfo *ipi;
 
-		memset(&ifr, 0, sizeof(ifr));
-		strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
-		if (ioctl(icmp_sock, SIOCGIFINDEX, &ifr) < 0) {
-			fprintf(stderr, "ping: unknown iface %s\n", device);
-			exit(2);
-		}
-		cmsg = (struct cmsghdr*)cmsgbuf;
+		cmsg = (struct cmsghdr*)(cmsgbuf+cmsglen);
 		cmsglen += CMSG_SPACE(sizeof(*ipi));
 		cmsg->cmsg_len = CMSG_LEN(sizeof(*ipi));
 		cmsg->cmsg_level = SOL_IPV6;
@@ -422,7 +459,7 @@ int main(int argc, char *argv[])
 
 		ipi = (struct in6_pktinfo*)CMSG_DATA(cmsg);
 		memset(ipi, 0, sizeof(*ipi));
-		ipi->ipi6_ifindex = ifr.ifr_ifindex;
+		ipi->ipi6_ifindex = if_name2index(device);
 	}
 
 	if ((whereto.sin6_addr.s6_addr16[0]&htons(0xff00)) == htons (0xff00)) {
@@ -474,14 +511,18 @@ int main(int argc, char *argv[])
 	hold += ((hold+511)/512)*(40+16+64+160);
 	sock_setbufs(icmp_sock, hold);
 
+#ifdef __linux__
 	csum_offset = 2;
 	sz_opt = sizeof(int);
 
 	err = setsockopt(icmp_sock, SOL_RAW, IPV6_CHECKSUM, &csum_offset, sz_opt);
 	if (err < 0) {
-		perror("setsockopt(RAW_CHECKSUM)");
-		exit(2);
+		/* checksum should be enabled by default and setting this
+		 * option might fail anyway.
+		 */
+		fprintf(stderr, "setsockopt(RAW_CHECKSUM) failed - try to continue.");
 	}
+#endif
 
 	/*
 	 *	select icmp echo reply as icmp type to receive
@@ -672,6 +713,7 @@ int receive_error_msg()
 		if (options & F_FLOOD) {
 			write(STDOUT_FILENO, "\bE", 2);
 		} else {
+			print_timestamp();
 			printf("From %s icmp_seq=%u ", pr_addr(&sin6->sin6_addr), ntohs(icmph.icmp6_seq));
 			pr_icmph(e->ee_type, e->ee_code, e->ee_info);
 			putchar('\n');
@@ -821,11 +863,13 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 				write(STDOUT_FILENO, "\bE", 2);
 				return 0;
 			}
+			print_timestamp();
 			printf("From %s: icmp_seq=%u ", pr_addr(&from->sin6_addr), ntohs(icmph1->icmp6_seq));
 		} else {
 			/* We've got something other than an ECHOREPLY */
 			if (!(options & F_VERBOSE) || uid)
 				return 1;
+			print_timestamp();
 			printf("From %s: ", pr_addr(&from->sin6_addr));
 		}
 		pr_icmph(icmph->icmp6_type, icmph->icmp6_code, ntohl(icmph->icmp6_mtu));
@@ -835,6 +879,9 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 		if (options & F_AUDIBLE)
 			putchar('\a');
 		putchar('\n');
+		fflush(stdout);
+	} else {
+		putchar('\a');
 		fflush(stdout);
 	}
 	return 0;
@@ -971,7 +1018,7 @@ char * pr_addr_n(struct in6_addr *addr)
 void usage(void)
 {
 	fprintf(stderr,
-"Usage: ping6 [-LUdfnqrvVaA] [-c count] [-i interval] [-w deadline]\n"
+"Usage: ping6 [-LUdfnqrvVaAD] [-c count] [-i interval] [-w deadline]\n"
 "             [-p pattern] [-s packetsize] [-t ttl] [-I interface]\n"
 "             [-M mtu discovery hint] [-S sndbuf]\n"
 "             [-F flow label] [-Q traffic class] [hop1 ...] destination\n");
