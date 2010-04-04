@@ -4,8 +4,9 @@ iputils (3:20100214-1) unstable; urgency=low
   * Convert to source format 3.0 (quilt)
   * Update standards version to 3.8.4.0.
   * Switch to debhelper compatibility version 7
+  * Remove netkit-ping from debian/control; we don't built it anymore
 
- -- Noah Meyerhans <noahm@debian.org>  Sun, 04 Apr 2010 00:21:48 -0700
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 04 Apr 2010 00:26:37 -0700
 
 iputils (3:20071127-1) unstable; urgency=low
 
