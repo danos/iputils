@@ -3,7 +3,7 @@ Section: net
 Priority: extra
 Maintainer: Noah Meyerhans <noahm@debian.org>
 Standards-Version: 3.8.4.0
-Build-Depends: debhelper (>> 2), sp, sgmlspl, docbook
+Build-Depends: debhelper (>= 7), sp, sgmlspl, docbook
 Vcs-Svn: svn+https://svn.csail.mit.edu/iputils
 Vcs-Browser: https://svn.csail.mit.edu/iputils
 
@@ -12,7 +12,7 @@ Architecture: any
 Provides: ping
 Priority: important
 Conflicts: ping, suidmanager (<< 0.50)
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Replaces: netbase (<< 4.00)
 Description: Tools to test the reachability of network hosts
  The ping command sends ICMP ECHO_REQUEST packets to a host in order to
@@ -25,7 +25,7 @@ Package: iputils-tracepath
 Architecture: any
 Suggests: traceroute
 Priority: optional
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Conflicts: suidmanager (<< 0.50)
 Replaces: netbase (<< 4.00)
 Description: Tools to trace the network path to a remote host
@@ -37,7 +37,7 @@ Description: Tools to trace the network path to a remote host
 
 Package: iputils-arping
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Conflicts: suidmanager (<< 0.50), arping, iputils-ping (<<20001110-6)
 Replaces: netbase (<< 4.00)
 Description: Tool to send ICMP echo requests to an ARP address
