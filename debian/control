@@ -46,3 +46,12 @@ Description: Tool to send ICMP echo requests to an ARP address
  used to locate a machine if its hardware address is known but its IP
  address is unknown
 
+Package: iputils-clockdiff
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Measure the time difference between networked computers
+ Clockdiff computes the difference between the time of the machine on
+ which it is called and the time of other network-accessible machines.
+ The time differences measured by clockdiff are obtained using a
+ sequence of ICMP TSTAMP messages which are returned to the sender by
+ the IP module in the remote machine.

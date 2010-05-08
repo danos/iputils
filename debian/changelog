@@ -1,9 +1,10 @@
-iputils (3:20100418-1) UNRELEASED; urgency=low
+iputils (3:20100418-1) unstable; urgency=low
 
   * NOT RELEASED YET
   * New upstream release.
+  * Provide an iputils-clockdiff package (Closes: #199500)
 
- -- Noah Meyerhans <noahm@debian.org>  Fri, 07 May 2010 23:44:17 -0700
+ -- Noah Meyerhans <noahm@debian.org>  Fri, 07 May 2010 23:58:53 -0700
 
 iputils (3:20100214-1) unstable; urgency=low
 

@@ -40,6 +40,8 @@ install: build
 	install -m 0755 -o root -g root tracepath6 \
 		debian/iputils-tracepath/usr/bin/
 	install -m 0755 -o root -g root arping debian/iputils-arping/usr/bin/
+	install -m 0755 -o root -g root clockdiff \
+		debian/iputils-clockdiff/usr/bin/
 
 # Build architecture-independent files here.
 # Pass -i to all debhelper commands in this target to reduce clutter.
