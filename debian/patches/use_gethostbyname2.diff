@@ -1,8 +1,8 @@
-Index: iputils/tracepath.c
+Index: trunk/tracepath.c
 ===================================================================
---- iputils.orig/tracepath.c	2007-12-09 20:32:32.000000000 -0500
-+++ iputils/tracepath.c	2007-12-09 20:33:20.000000000 -0500
-@@ -318,9 +318,9 @@
+--- trunk.orig/tracepath.c	2010-05-07 23:13:52.000000000 -0700
++++ trunk/tracepath.c	2010-05-07 23:24:09.000000000 -0700
+@@ -338,9 +338,9 @@
  		base_port = atoi(p+1);
  	} else
  		base_port = 44444;
@@ -14,11 +14,11 @@ Index: iputils/tracepath.c
  		exit(1);
  	}
  	memcpy(&target.sin_addr, he->h_addr, 4);
-Index: iputils/ping.c
+Index: trunk/ping.c
 ===================================================================
---- iputils.orig/ping.c	2007-12-09 20:32:59.000000000 -0500
-+++ iputils/ping.c	2007-12-09 20:33:20.000000000 -0500
-@@ -249,7 +249,7 @@
+--- trunk.orig/ping.c	2010-05-07 23:23:22.000000000 -0700
++++ trunk/ping.c	2010-05-07 23:24:09.000000000 -0700
+@@ -250,7 +250,7 @@
  			if (argc == 1)
  				options |= F_NUMERIC;
  		} else {
