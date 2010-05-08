@@ -30,9 +30,26 @@
 #define SOL_IPV6 IPPROTO_IPV6
 #endif
 
-#ifndef IPV6_PMTUDISC_PROBE
-#define IPV6_PMTUDISC_PROBE	3
+#ifndef IP_PMTUDISC_DO
+#define IP_PMTUDISC_DO		3
 #endif
+#ifndef IPV6_PMTUDISC_DO
+#define IPV6_PMTUDISC_DO	3
+#endif
+
+struct hhistory
+{
+	int	hops;
+	struct timeval sendtime;
+};
+
+struct hhistory his[64];
+int hisptr;
+
+sa_family_t family = AF_INET6;
+struct sockaddr_storage target;
+socklen_t targetlen;
+__u16 base_port;
 
 int overhead = 48;
 int mtu = 128000;
@@ -41,6 +58,8 @@ int hops_from = -1;
 int no_resolve = 0;
 int show_both = 0;
 int mapped;
+
+#define HOST_COLUMN_SIZE	52
 
 struct probehdr
 {
@@ -59,6 +78,20 @@ void data_wait(int fd)
 	select(fd+1, &fds, NULL, NULL, &tv);
 }
 
+void print_host(const char *a, const char *b, int both)
+{
+	size_t plen = 0;
+	printf("%s", a);
+	plen = strlen(a);
+	if (both) {
+		printf(" (%s)", b);
+		plen += strlen(b) + 3;
+	}
+	if (plen >= HOST_COLUMN_SIZE)
+		plen = HOST_COLUMN_SIZE - 1;
+	printf("%*s", HOST_COLUMN_SIZE - plen, "");
+}
+
 int recverr(int fd, int ttl)
 {
 	int res;
@@ -68,8 +101,10 @@ int recverr(int fd, int ttl)
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
 	struct sock_extended_err *e;
+	struct sockaddr_storage addr;
 	struct timeval tv;
 	struct timeval *rettv;
+	int slot = 0;
 	int rethops;
 	int sndhops;
 	int progress = -1;
@@ -79,8 +114,8 @@ restart:
 	memset(&rcvbuf, -1, sizeof(rcvbuf));
 	iov.iov_base = &rcvbuf;
 	iov.iov_len = sizeof(rcvbuf);
-	msg.msg_name = NULL;
-	msg.msg_namelen = 0;
+	msg.msg_name = (caddr_t)&addr;
+	msg.msg_namelen = sizeof(addr);
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 	msg.msg_flags = 0;
@@ -95,29 +130,41 @@ restart:
 		goto restart;
 	}
 
-	progress = 2;
+	progress = mtu;
 
 	rethops = -1;
 	sndhops = -1;
 	e = NULL;
 	rettv = NULL;
+
+	slot = -base_port;
+	switch (family) {
+	case AF_INET6:
+		slot += ntohs(((struct sockaddr_in6 *)&addr)->sin6_port);
+		break;
+	case AF_INET:
+		slot += ntohs(((struct sockaddr_in *)&addr)->sin_port);
+		break;
+	}
+
+	if (slot >= 0 && slot < 63 && his[slot].hops) {
+		sndhops = his[slot].hops;
+		rettv = &his[slot].sendtime;
+		his[slot].hops = 0;
+	}
 	broken_router = 0;
 	if (res == sizeof(rcvbuf)) {
 		if (rcvbuf.ttl == 0 || rcvbuf.tv.tv_sec == 0)
 			broken_router = 1;
-
-		sndhops = rcvbuf.ttl;
-		rettv = &rcvbuf.tv;
-		if (sndhops != ttl)
-			progress = -1;
+		else {
+			sndhops = rcvbuf.ttl;
+			rettv = &rcvbuf.tv;
+		}
 	}
-	if (sndhops>0)
-		printf("%2d:  ", sndhops);
-	else
-		printf("%2d?: ", ttl);
 
 	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-		if (cmsg->cmsg_level == SOL_IPV6) {
+		switch (cmsg->cmsg_level) {
+		case SOL_IPV6:
 			switch(cmsg->cmsg_type) {
 			case IPV6_RECVERR:
 				e = (struct sock_extended_err *)CMSG_DATA(cmsg);
@@ -128,10 +175,20 @@ restart:
 #endif
 				rethops = *(int*)CMSG_DATA(cmsg);
 				break;
+			default:
+				printf("cmsg6:%d\n ", cmsg->cmsg_type);
 			}
-		} else if (cmsg->cmsg_level == SOL_IP) {
-			if (cmsg->cmsg_type == IP_TTL) {
+			break;
+		case SOL_IP:
+			switch(cmsg->cmsg_type) {
+			case IP_RECVERR:
+				e = (struct sock_extended_err *)CMSG_DATA(cmsg);
+				break;
+			case IP_TTL:
 				rethops = *(__u8*)CMSG_DATA(cmsg);
+				break;
+			default:
+				printf("cmsg4:%d\n ", cmsg->cmsg_type);
 			}
 		}
 	}
@@ -140,40 +197,50 @@ restart:
 		return 0;
 	}
 	if (e->ee_origin == SO_EE_ORIGIN_LOCAL)
-		printf("%-32s ", "[LOCALHOST]");
+		printf("%2d?: %-32s ", ttl, "[LOCALHOST]");
 	else if (e->ee_origin == SO_EE_ORIGIN_ICMP6 ||
 		 e->ee_origin == SO_EE_ORIGIN_ICMP) {
-		struct hostent * h = NULL;
-		char abuf[128];
-		struct sockaddr_in6 *sin6 = (struct sockaddr_in6*)(e+1);
-		struct sockaddr_in *sin = (struct sockaddr_in*)(e+1);
+		char abuf[NI_MAXHOST], hbuf[NI_MAXHOST];
+		struct sockaddr *sa = (struct sockaddr *)(e + 1);
+		socklen_t salen;
 
-		if (!no_resolve)
+		if (sndhops>0)
+			printf("%2d:  ", sndhops);
+		else
+			printf("%2d?: ", ttl);
+
+		switch (sa->sa_family) {
+		case AF_INET6:
+			salen = sizeof(struct sockaddr_in6);
+			break;
+		case AF_INET:
+			salen = sizeof(struct sockaddr_in);
+			break;
+		default:
+			salen = 0;
+		}
+
+		if (no_resolve || show_both) {
+			if (getnameinfo(sa, salen,
+					abuf, sizeof(abuf), NULL, 0,
+					NI_NUMERICHOST))
+				strcpy(abuf, "???");
+		} else
+			abuf[0] = 0;
+
+		if (!no_resolve || show_both) {
 			fflush(stdout);
+			if (getnameinfo(sa, salen,
+					hbuf, sizeof(hbuf), NULL, 0,
+					0))
+				strcpy(hbuf, "???");
+		} else
+			hbuf[0] = 0;
 
-		if (sin->sin_family == AF_INET6) {
-			inet_ntop(AF_INET6, &sin6->sin6_addr, abuf, sizeof(abuf));
-			if (!no_resolve)
-				h = gethostbyaddr((char *) &sin6->sin6_addr, sizeof(sin6->sin6_addr), AF_INET6);
-		} else {
-			inet_ntop(AF_INET, &sin->sin_addr, abuf, sizeof(abuf));
-			if (!no_resolve)
-				h = gethostbyaddr((char *) &sin->sin_addr, sizeof(sin->sin_addr), AF_INET);
-		}
-		if (!no_resolve) {
-			char fabuf[256];
-			if (show_both) {
-				if (h)
-					snprintf(fabuf, sizeof(fabuf), "%s %s", h->h_name, abuf);
-				else
-					snprintf(fabuf, sizeof(fabuf), "%s", abuf);
-			} else {
-				snprintf(fabuf, sizeof(fabuf), "%s", h ? h->h_name : abuf);
-			}
-			printf("%-40s ", fabuf);
-		} else {
-			printf("%-32s ", abuf);
-		}
+		if (no_resolve)
+			print_host(abuf, hbuf, show_both);
+		else
+			print_host(hbuf, abuf, show_both);
 	}
 
 	if (rettv) {
@@ -190,7 +257,7 @@ restart:
 	case EMSGSIZE:
 		printf("pmtu %d\n", e->ee_info);
 		mtu = e->ee_info;
-		progress = 1;
+		progress = mtu;
 		break;
 	case ECONNREFUSED:
 		printf("reached\n");
@@ -245,34 +312,43 @@ int probe_ttl(int fd, int ttl)
 	char sndbuf[mtu];
 	struct probehdr *hdr = (struct probehdr*)sndbuf;
 
+	memset(sndbuf, 0, mtu);
+
 restart:
 
 	for (i=0; i<10; i++) {
 		int res;
 
 		hdr->ttl = ttl;
+		switch (family) {
+		case AF_INET6:
+			((struct sockaddr_in6 *)&target)->sin6_port = htons(base_port + hisptr);
+			break;
+		case AF_INET:
+			((struct sockaddr_in *)&target)->sin_port = htons(base_port + hisptr);
+			break;
+		}
 		gettimeofday(&hdr->tv, NULL);
-		if (send(fd, sndbuf, mtu-overhead, 0) > 0)
+		his[hisptr].hops = ttl;
+		his[hisptr].sendtime = hdr->tv;
+		if (sendto(fd, sndbuf, mtu-overhead, 0, (struct sockaddr *)&target, targetlen) > 0)
 			break;
 		res = recverr(fd, ttl);
+		his[hisptr].hops = 0;
 		if (res==0)
 			return 0;
 		if (res > 0)
 			goto restart;
 	}
+	hisptr = (hisptr + 1) & 63;
 
 	if (i<10) {
-		int res;
-
 		data_wait(fd);
 		if (recv(fd, sndbuf, sizeof(sndbuf), MSG_DONTWAIT) > 0) {
 			printf("%2d?: reply received 8)\n", ttl);
 			return 0;
 		}
-		res = recverr(fd, ttl);
-		if (res == 1)
-			goto restart;
-		return res;
+		return recverr(fd, ttl);
 	}
 
 	printf("%2d:  send failed\n", ttl);
@@ -292,7 +368,6 @@ int main(int argc, char **argv)
 {
 	int fd;
 	int on;
-	struct sockaddr_in6 sin;
 	int ttl;
 	char *p;
 	struct addrinfo hints, *ai, *ai0;
@@ -325,21 +400,20 @@ int main(int argc, char **argv)
 	if (argc != 1)
 		usage();
 
-	memset(&sin, 0, sizeof(sin));
-
 	p = strchr(argv[0], '/');
 	if (p) {
 		*p = 0;
-		sprintf(pbuf, "%u", (unsigned)atoi(p+1));
+		base_port = (unsigned)atoi(p+1);
 	} else {
-		sprintf(pbuf, "%u", (0x8000 | getpid()) & 0xffff);
+		base_port = 44444;
 	}
+	sprintf(pbuf, "%u", base_port);
 
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET6;
+	hints.ai_family = family;
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_protocol = IPPROTO_UDP;
-	hints.ai_flags = no_resolve ? AI_NUMERICHOST : 0;
+	hints.ai_flags = 0;
 	gai = getaddrinfo(argv[0], pbuf, &hints, &ai0);
 	if (gai) {
 		herror("getaddrinfo");	/*XXX*/
@@ -348,15 +422,15 @@ int main(int argc, char **argv)
 
 	fd = -1;
 	for (ai = ai0; ai; ai = ai->ai_next) {
+		/* sanity check */
+		if (family && ai->ai_family != family)
+			continue;
+		family = ai->ai_family;
 		fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 		if (fd < 0)
 			continue;
-		if (connect(fd, ai->ai_addr, ai->ai_addrlen) < 0) {
-			close(fd);
-			fd = -1;
-			continue;
-		}
-		memcpy(&sin, ai->ai_addr, sizeof(sin));
+		memcpy(&target, ai->ai_addr, sizeof(target));
+		targetlen = ai->ai_addrlen;
 		break;
 	}
 	if (fd < 0) {
@@ -365,47 +439,54 @@ int main(int argc, char **argv)
 	}
 	freeaddrinfo(ai0);
 
-	if (!sin.sin6_addr.s6_addr32[0] && !sin.sin6_addr.s6_addr32[1]
-	    && sin.sin6_addr.s6_addr32[2] == htonl(0xFFFF)) {
+	switch (family) {
+	case AF_INET6:
+		mtu = 128000;
+		overhead = 48;
+		on = IPV6_PMTUDISC_DO;
+		if (setsockopt(fd, SOL_IPV6, IPV6_MTU_DISCOVER, &on, sizeof(on)) &&
+		    (on = IPV6_PMTUDISC_DO,
+		     setsockopt(fd, SOL_IPV6, IPV6_MTU_DISCOVER, &on, sizeof(on)))) {
+			perror("IPV6_MTU_DISCOVER");
+			exit(1);
+		}
+		on = 1;
+		if (setsockopt(fd, SOL_IPV6, IPV6_RECVERR, &on, sizeof(on))) {
+			perror("IPV6_RECVERR");
+			exit(1);
+		}
+		if (
+#ifdef IPV6_RECVHOPLIMIT
+		    setsockopt(fd, SOL_IPV6, IPV6_HOPLIMIT, &on, sizeof(on)) &&
+		    setsockopt(fd, SOL_IPV6, IPV6_2292HOPLIMIT, &on, sizeof(on))
+#else
+		    setsockopt(fd, SOL_IPV6, IPV6_HOPLIMIT, &on, sizeof(on))
+#endif
+		    ) {
+			perror("IPV6_HOPLIMIT");
+			exit(1);
+		}
+		if (!IN6_IS_ADDR_V4MAPPED(&(((struct sockaddr_in6 *)&target)->sin6_addr)))
+			break;
+		mapped = 1;
+		/*FALLTHROUGH*/
+	case AF_INET:
 		mtu = 65535;
 		overhead = 28;
-		mapped = 1;
-	}
-
-	on = IPV6_PMTUDISC_PROBE;
-	if (setsockopt(fd, SOL_IPV6, IPV6_MTU_DISCOVER, &on, sizeof(on)) &&
-	    (on = IPV6_PMTUDISC_DO,
-	     setsockopt(fd, SOL_IPV6, IPV6_MTU_DISCOVER, &on, sizeof(on)))) {
-		perror("IPV6_MTU_DISCOVER");
-		exit(1);
-	}
-	if (mapped && setsockopt(fd, SOL_IP, IP_MTU_DISCOVER, &on, sizeof(on))) {
-		perror("IP_MTU_DISCOVER");
-		exit(1);
-	}
-	on = 1;
-	if (setsockopt(fd, SOL_IPV6, IPV6_RECVERR, &on, sizeof(on))) {
-		perror("IPV6_RECVERR");
-		exit(1);
-	}
-	if (mapped && setsockopt(fd, SOL_IP, IP_RECVERR, &on, sizeof(on))) {
-		perror("IP_RECVERR");
-		exit(1);
-	}
-	if (
-#ifdef IPV6_RECVHOPLIMIT
-	    setsockopt(fd, SOL_IPV6, IPV6_HOPLIMIT, &on, sizeof(on)) &&
-	    setsockopt(fd, SOL_IPV6, IPV6_2292HOPLIMIT, &on, sizeof(on))
-#else
-	    setsockopt(fd, SOL_IPV6, IPV6_HOPLIMIT, &on, sizeof(on))
-#endif
-	    ) {
-		perror("IPV6_HOPLIMIT");
-		exit(1);
-	}
-	if (mapped && setsockopt(fd, SOL_IP, IP_RECVTTL, &on, sizeof(on))) {
-		perror("IP_RECVTTL");
-		exit(1);
+		on = IP_PMTUDISC_DO;
+		if (setsockopt(fd, SOL_IP, IP_MTU_DISCOVER, &on, sizeof(on))) {
+			perror("IP_MTU_DISCOVER");
+			exit(1);
+		}
+		on = 1;
+		if (setsockopt(fd, SOL_IP, IP_RECVERR, &on, sizeof(on))) {
+			perror("IP_RECVERR");
+			exit(1);
+		}
+		if (setsockopt(fd, SOL_IP, IP_RECVTTL, &on, sizeof(on))) {
+			perror("IP_RECVTTL");
+			exit(1);
+		}
 	}
 
 	for (ttl=1; ttl<32; ttl++) {
@@ -413,13 +494,20 @@ int main(int argc, char **argv)
 		int i;
 
 		on = ttl;
-		if (setsockopt(fd, SOL_IPV6, IPV6_UNICAST_HOPS, &on, sizeof(on))) {
-			perror("IPV6_UNICAST_HOPS");
-			exit(1);
-		}
-		if (mapped && setsockopt(fd, SOL_IP, IP_TTL, &on, sizeof(on))) {
-			perror("IP_TTL");
-			exit(1);
+		switch (family) {
+		case AF_INET6:
+			if (setsockopt(fd, SOL_IPV6, IPV6_UNICAST_HOPS, &on, sizeof(on))) {
+				perror("IPV6_UNICAST_HOPS");
+				exit(1);
+			}
+			if (!mapped)
+				break;
+			/*FALLTHROUGH*/
+		case AF_INET:
+			if (setsockopt(fd, SOL_IP, IP_TTL, &on, sizeof(on))) {
+				perror("IP_TTL");
+				exit(1);
+			}
 		}
 
 restart:

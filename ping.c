@@ -75,6 +75,7 @@ struct icmp_filter {
 #define	MAXICMPLEN	76
 #define	NROUTES		9		/* number of record route slots */
 #define TOS_MAX		255		/* 8-bit TOS field */
+#define MAX_HOSTNAMELEN	NI_MAXHOST
 
 
 static int ts_type;
@@ -119,7 +120,7 @@ main(int argc, char **argv)
 	int ch, hold, packlen;
 	int socket_errno;
 	u_char *packet;
-	char *target, hnamebuf[MAXHOSTNAMELEN];
+	char *target, hnamebuf[MAX_HOSTNAMELEN];
 	char rspace[3 + 4 * NROUTES + 1];	/* record route space */
 
 	icmp_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
@@ -679,6 +680,12 @@ int send_probe()
  * which arrive ('tis only fair).  This permits multiple copies of this
  * program to be run without having intermingled output (or statistics!).
  */
+void pr_echo_reply(__u8 *_icp, int len)
+{
+	struct icmphdr *icp = (struct icmphdr *)_icp;
+	printf(" icmp_req=%u", ntohs(icp->un.echo.sequence));
+}
+
 int
 parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 {
@@ -707,9 +714,10 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 	if (icp->type == ICMP_ECHOREPLY) {
 		if (icp->un.echo.id != ident)
 			return 1;			/* 'Twas not our ECHO */
-		if (gather_statistics((__u8*)(icp+1), cc,
+		if (gather_statistics((__u8*)icp, sizeof(*icp), cc,
 				      ntohs(icp->un.echo.sequence),
-				      ip->ttl, 0, tv, pr_addr(from->sin_addr.s_addr)))
+				      ip->ttl, 0, tv, pr_addr(from->sin_addr.s_addr),
+				      pr_echo_reply))
 			return 0;
 	} else {
 		/* We fall here when a redirect or source quench arrived.
@@ -1225,8 +1233,8 @@ void usage(void)
 {
 	fprintf(stderr,
 "Usage: ping [-LRUbdfnqrvVaAD] [-c count] [-i interval] [-w deadline]\n"
-"            [-p pattern] [-s packetsize] [-t ttl] [-I interface or address]\n"
-"            [-M mtu discovery hint] [-m mark] [-S sndbuf]\n"
-"            [ -T timestamp option ] [ -Q tos ] [hop1 ...] destination\n");
+"            [-p pattern] [-s packetsize] [-t ttl] [-I interface]\n"
+"            [-M pmtudisc-hint] [-m mark] [-S sndbuf]\n"
+"            [-T tstamp-options] [-Q tos] [hop1 ...] destination\n");
 	exit(2);
 }

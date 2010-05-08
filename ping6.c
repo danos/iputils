@@ -71,6 +71,9 @@ char copyright[] =
 #include <linux/filter.h>
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
+#include <resolv.h>
+
+#include "ping6_niquery.h"
 
 #ifndef SOL_IPV6
 #define SOL_IPV6 IPPROTO_IPV6
@@ -151,7 +154,17 @@ int pmtudisc=-1;
 
 static int icmp_sock;
 
+#include <openssl/md5.h>
 
+/* Node Information query */
+int ni_query = -1;
+int ni_flag = 0;
+void *ni_subject = NULL;
+int ni_subject_len = 0;
+int ni_subject_type = 0;
+char *ni_group;
+
+__u8 ni_nonce[8];
 
 static struct in6_addr in6_anyaddr;
 static __inline__ int ipv6_addr_any(struct in6_addr *addr)
@@ -210,6 +223,296 @@ unsigned int if_name2index(const char *ifname)
 	return i;
 }
 
+struct niquery_option {
+	char *name;
+	int namelen;
+	int has_arg;
+	int data;
+	int (*handler)(int index, const char *arg);
+};
+
+#define NIQUERY_OPTION(_name, _has_arg, _data, _handler)	\
+	{							\
+		.name = _name,					\
+		.namelen = sizeof(_name) - 1,			\
+		.has_arg = _has_arg,				\
+		.data = _data,					\
+		.handler = _handler				\
+	}
+
+static int niquery_option_name_handler(int index, const char *arg);
+static int niquery_option_ipv6_handler(int index, const char *arg);
+static int niquery_option_ipv6_flag_handler(int index, const char *arg);
+static int niquery_option_ipv4_handler(int index, const char *arg);
+static int niquery_option_ipv4_flag_handler(int index, const char *arg);
+static int niquery_option_subject_addr_handler(int index, const char *arg);
+static int niquery_option_subject_name_handler(int index, const char *arg);
+char *ni_groupaddr(const char *name);
+
+struct niquery_option niquery_options[] = {
+	NIQUERY_OPTION("name",			0,	0,				niquery_option_name_handler),
+	NIQUERY_OPTION("fqdn",			0,	0,				niquery_option_name_handler),
+	NIQUERY_OPTION("ipv6",			0,	0,				niquery_option_ipv6_handler),
+	NIQUERY_OPTION("ipv6-all",		0,	NI_IPV6ADDR_F_ALL,		niquery_option_ipv6_flag_handler),
+	NIQUERY_OPTION("ipv6-compatible",	0,	NI_IPV6ADDR_F_COMPAT,		niquery_option_ipv6_flag_handler),
+	NIQUERY_OPTION("ipv6-linklocal",	0,	NI_IPV6ADDR_F_LINKLOCAL,	niquery_option_ipv6_flag_handler),
+	NIQUERY_OPTION("ipv6-sitelocal",	0,	NI_IPV6ADDR_F_SITELOCAL,	niquery_option_ipv6_flag_handler),
+	NIQUERY_OPTION("ipv6-global",		0,	NI_IPV6ADDR_F_GLOBAL,		niquery_option_ipv6_flag_handler),
+	NIQUERY_OPTION("ipv4",			0,	0,				niquery_option_ipv4_handler),
+	NIQUERY_OPTION("ipv4-all",		0,	NI_IPV4ADDR_F_ALL,		niquery_option_ipv4_flag_handler),
+	NIQUERY_OPTION("subject-ipv6",		1,	NI_SUBJ_IPV6,			niquery_option_subject_addr_handler),
+	NIQUERY_OPTION("subject-ipv4",		1,	NI_SUBJ_IPV4,			niquery_option_subject_addr_handler),
+	NIQUERY_OPTION("subject-name",		1,	0,				niquery_option_subject_name_handler),
+	NIQUERY_OPTION("subject-fqdn",		1,	-1,				niquery_option_subject_name_handler),
+	{},
+};
+
+static int niquery_set_qtype(int type)
+{
+	if (ni_query >= 0 && ni_query != type) {
+		printf("Qtype conflict\n");
+		return -1;
+	}
+	ni_query = type;
+	return 0;
+}
+
+static int niquery_option_name_handler(int index, const char *arg)
+{
+	if (niquery_set_qtype(NI_QTYPE_NAME) < 0)
+		return -1;
+	return 0;
+}
+
+static int niquery_option_ipv6_handler(int index, const char *arg)
+{
+	if (niquery_set_qtype(NI_QTYPE_IPV6ADDR) < 0)
+		return -1;
+	return 0;
+}
+
+static int niquery_option_ipv6_flag_handler(int index, const char *arg)
+{
+	if (niquery_set_qtype(NI_QTYPE_IPV6ADDR) < 0)
+		return -1;
+	ni_flag |= niquery_options[index].data;
+	return 0;
+}
+
+static int niquery_option_ipv4_handler(int index, const char *arg)
+{
+	if (niquery_set_qtype(NI_QTYPE_IPV4ADDR) < 0)
+		return -1;
+	return 0;
+}
+
+static int niquery_option_ipv4_flag_handler(int index, const char *arg)
+{
+	if (niquery_set_qtype(NI_QTYPE_IPV4ADDR) < 0)
+		return -1;
+	ni_flag |= niquery_options[index].data;
+	return 0;
+}
+
+static int niquery_set_subject_type(int type)
+{
+	if (ni_subject_type && ni_subject_type != type) {
+		printf("Subject type conflict\n");
+		return -1;
+	}
+	ni_subject_type = type;
+	return 0;
+}
+
+#define ARRAY_SIZE(array)	(sizeof(array) / sizeof(array[0]))
+#define OFFSET_OF(type,elem)	((size_t)&((type *)0)->elem)
+
+static int niquery_option_subject_addr_handler(int index, const char *arg)
+{
+	struct addrinfo hints, *ai0, *ai;
+	int offset;
+	int gai;
+
+	if (niquery_set_subject_type(niquery_options[index].data) < 0)
+		return -1;
+
+	ni_subject_type = niquery_options[index].data;
+
+	switch (niquery_options[index].data) {
+	case NI_SUBJ_IPV6:
+		ni_subject_len = sizeof(struct in6_addr);
+		offset = OFFSET_OF(struct sockaddr_in6, sin6_addr);
+		hints.ai_family = AF_INET6;
+		break;
+	case NI_SUBJ_IPV4:
+		ni_subject_len = sizeof(struct in_addr);
+		offset = OFFSET_OF(struct sockaddr_in, sin_addr);
+		hints.ai_family = AF_INET;
+		break;
+	default:
+		/* should not happen. */
+		offset = -1;
+	}
+
+	hints.ai_socktype = SOCK_DGRAM;
+
+	gai = getaddrinfo(arg, 0, &hints, &ai0);
+	if (!gai) {
+		fprintf(stderr, "Unknown host: %s\n", arg);
+		return -1;
+	}
+
+	for (ai = ai0; ai; ai = ai->ai_next) {
+		void *p = malloc(ni_subject_len);
+		if (!p)
+			continue;
+		memcpy(p, (__u8 *)ai->ai_addr + offset, ni_subject_len);
+		free(ni_subject);
+		ni_subject = p;
+		break;
+	}
+	freeaddrinfo(ai0);
+
+	return 0;
+}
+
+static int niquery_count_dots(const char *arg)
+{
+	const char *p;
+	int count = 0;
+	for (p = arg; *p; p++) {
+		if (*p == '.')
+			count++;
+	}
+	return count;
+}
+
+static int niquery_option_subject_name_handler(int index, const char *arg)
+{
+	unsigned char *dnptrs[2], **dpp, **lastdnptr;
+	int n;
+	char *name, *p;
+	unsigned char *buf;
+	size_t buflen = strlen(arg) + 1;
+	int fqdn = niquery_options[index].data;
+
+	if (niquery_set_subject_type(NI_SUBJ_NAME) < 0)
+		return -1;
+
+	if (fqdn == 0) {
+		/* guess if hostname is FQDN */
+		fqdn = niquery_count_dots(arg) ? 1 : -1;
+	}
+
+	name = strdup(arg);
+	buf = malloc(buflen + 1);
+	if (!name || !buf) {
+		free(name);
+		free(buf);
+		fprintf(stderr, "ping6: out of memory.\n");
+		exit(1);
+	}
+
+	ni_group = ni_groupaddr(name);
+
+	p = strchr(name, '%');
+	if (p)
+		*p = '\0';
+
+	dpp = dnptrs;
+	lastdnptr = &dnptrs[ARRAY_SIZE(dnptrs)];
+
+	*dpp++ = (unsigned char *)buf;
+	*dpp++ = NULL;
+
+	n = dn_comp(name, (unsigned char *)buf, buflen, dnptrs, lastdnptr);
+	if (n < 0) {
+		fprintf(stderr, "ping6: Inappropriate subject name: %s\n", buf);
+		free(name);
+		free(buf);
+		exit(1);
+	}
+
+	if (fqdn < 0)
+		buf[n] = 0;
+
+	free(ni_subject);
+	ni_subject = buf;
+	ni_subject_len = n + (fqdn < 0);
+
+	free(name);
+	return 0;
+}
+
+int niquery_option_handler(const char *opt_arg)
+{
+	struct niquery_option *p;
+	int i;
+	int ret = -1;
+	for (i = 0, p = niquery_options; p->name; i++, p++) {
+		if (strncmp(p->name, opt_arg, p->namelen))
+			continue;
+		if (!p->has_arg) {
+			if (opt_arg[p->namelen] == '\0') {
+				ret = p->handler(i, NULL);
+				if (ret >= 0)
+					break;
+			}
+		} else {
+			if (opt_arg[p->namelen] == '=') {
+				ret = p->handler(i, &opt_arg[p->namelen] + 1);
+				if (ret >= 0)
+					break;
+			}
+		}
+	}
+	return ret;
+}
+
+char *ni_groupaddr(const char *name)
+{
+	MD5_CTX ctxt;
+	__u8 digest[16];
+	static char nigroup_buf[INET6_ADDRSTRLEN + 1 + IFNAMSIZ];
+	size_t len;
+	char buf[64], *p = buf, *q;
+	int i;
+
+	if (!p) {
+		fprintf(stderr, "ping6: memory allocation failure.\n");
+		exit(1);
+	}
+
+	len = strcspn(name, ".%");
+	if (len & ~0x3f) {
+		fprintf(stderr, "ping6: label too long for subject: %s\n",
+			name);
+		exit(1);
+	}
+
+	q = strrchr(name, '%');
+	if (q && strlen(q + 1) >= IFNAMSIZ) {
+		fprintf(stderr, "ping6: scope too long: %s\n",
+			q + 1);
+		exit(1);
+	}
+
+	*p++ = len;
+	for (i = 0; i < len; i++)
+		*p++ = isupper(name[i]) ? tolower(name[i]) : name[i];
+
+	MD5_Init(&ctxt);
+	MD5_Update(&ctxt, buf, len + 1);
+	MD5_Final(digest, &ctxt);
+
+	sprintf(nigroup_buf, "ff02::2:%02x%02x:%02x%02x",
+		digest[0], digest[1], digest[2], digest[3]);
+
+	if (q)
+		strcat(nigroup_buf, q);
+	return nigroup_buf;
+}
+
 int main(int argc, char *argv[])
 {
 	int ch, hold, packlen;
@@ -240,7 +543,7 @@ int main(int argc, char *argv[])
 	firsthop.sin6_family = AF_INET6;
 
 	preload = 1;
-	while ((ch = getopt(argc, argv, COMMON_OPTSTR "F:")) != EOF) {
+	while ((ch = getopt(argc, argv, COMMON_OPTSTR "F:N:")) != EOF) {
 		switch(ch) {
 		case 'F':
 			sscanf(optarg, "%x", &flowlabel);
@@ -292,6 +595,12 @@ int main(int argc, char *argv[])
 		case 'V':
 			printf("ping6 utility, iputils-ss%s\n", SNAPSHOT);
 			exit(0);
+		case 'N':
+			if (niquery_option_handler(optarg) < 0) {
+				usage();
+				break;
+			}
+			break;
 		COMMON_OPTIONS
 			common_options(ch);
 			break;
@@ -354,9 +663,27 @@ int main(int argc, char *argv[])
 		argc--;
 	}
 
-	if (argc != 1)
+	if (ni_query >= 0) {
+		int i;
+		for (i = 0; i < 8; i++)
+			ni_nonce[i] = rand();
+
+		if (!ni_subject) {
+			ni_subject = &whereto.sin6_addr;
+			ni_subject_len = sizeof(whereto.sin6_addr);
+			ni_subject_type = NI_SUBJ_IPV6;
+		}
+	}
+
+	if (argc > 1)
 		usage();
-	target = *argv;
+	else if (argc == 1) {
+		target = *argv;
+	} else {
+		if (ni_query < 0 && ni_subject_type != NI_SUBJ_NAME)
+			usage();
+		target = ni_group;
+	}
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET6;
@@ -490,8 +817,10 @@ int main(int argc, char *argv[])
 		exit(2);
 	}
 
-	if (datalen >= sizeof(struct timeval))	/* can we time transfer */
+	if (datalen >= sizeof(struct timeval) && (ni_query < 0)) {
+		/* can we time transfer */
 		timing = 1;
+	}
 	packlen = datalen + 8 + 4096 + 40 + 8; /* 4096 for rthdr */
 	if (!(packet = (u_char *)malloc((u_int)packlen))) {
 		fprintf(stderr, "ping: out of memory.\n");
@@ -537,7 +866,10 @@ int main(int argc, char *argv[])
 		ICMP6_FILTER_SETPASS(ICMP6_PARAM_PROB, &filter);
 	}
 
-	ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filter);
+	if (ni_query >= 0)
+		ICMP6_FILTER_SETPASS(ICMPV6_NI_REPLY, &filter);
+	else
+		ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filter);
 
 	err = setsockopt(icmp_sock, IPPROTO_ICMPV6, ICMP6_FILTER, &filter,
 			 sizeof(struct icmp6_filter));
@@ -586,7 +918,22 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if (options & F_TCLASS) {
+#ifdef IPV6_TCLASS
+		if (setsockopt(icmp_sock, IPPROTO_IPV6, IPV6_TCLASS,
+			       &tclass, sizeof(tclass)) == -1) {
+			perror ("setsockopt(IPV6_TCLASS)");
+			exit(2);
+		}
+#else
+		fprintf(stderr, "Traffic class is not supported.\n");
+#endif
+	}
+
 	if (options&F_FLOWINFO) {
+#ifdef IPV6_FLOWINFO_SEND
+		int on = 1;
+#endif
 #ifdef IPV6_FLOWLABEL_MGR
 		char freq_buf[CMSG_ALIGN(sizeof(struct in6_flowlabel_req)) + cmsglen];
 		struct in6_flowlabel_req *freq = (struct in6_flowlabel_req *)freq_buf;
@@ -615,11 +962,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Flow labels are not supported.\n");
 		exit(2);
 #endif
-	}
-	if (options&(F_FLOWINFO|F_TCLASS)) {
+
 #ifdef IPV6_FLOWINFO_SEND
-		int on = 1;
-		whereto.sin6_flowinfo = flowlabel | htonl((tclass&0xFF)<<20);
+		whereto.sin6_flowinfo = flowlabel;
 		if (setsockopt(icmp_sock, IPPROTO_IPV6, IPV6_FLOWINFO_SEND,
 			       &on, sizeof(on)) == -1) {
 			perror ("can't send flowinfo");
@@ -734,20 +1079,17 @@ out:
  * of the data portion are used to hold a UNIX "timeval" struct in VAX
  * byte-order, to compute the round-trip time.
  */
-int send_probe(void)
+int build_echo(__u8 *_icmph)
 {
 	struct icmp6_hdr *icmph;
 	int cc;
-	int i;
 
-	icmph = (struct icmp6_hdr *)outpack;
+	icmph = (struct icmp6_hdr *)_icmph;
 	icmph->icmp6_type = ICMP6_ECHO_REQUEST;
 	icmph->icmp6_code = 0;
 	icmph->icmp6_cksum = 0;
 	icmph->icmp6_seq = htons(ntransmitted+1);
 	icmph->icmp6_id = ident;
-
-	CLR((ntransmitted+1) % mx_dup_ck);
 
 	if (timing)
 		gettimeofday((struct timeval *)&outpack[8],
@@ -755,15 +1097,55 @@ int send_probe(void)
 
 	cc = datalen + 8;			/* skips ICMP portion */
 
+	return cc;
+}
+
+int build_niquery(__u8 *_nih)
+{
+	struct ni_hdr *nih;
+	int cc;
+
+	nih = (struct ni_hdr *)_nih;
+	nih->ni_cksum = 0;
+
+	CLR(ntohs((*(__u16*)(nih->ni_nonce))) % mx_dup_ck);
+
+	nih->ni_type = ICMPV6_NI_QUERY;
+	cc = sizeof(*nih);
+	datalen = 0;
+
+	memcpy(nih->ni_nonce, ni_nonce, sizeof(nih->ni_nonce));
+	*(__u16*)(nih->ni_nonce) = htons(ntransmitted + 1);
+
+	nih->ni_code = ni_subject_type;
+	nih->ni_qtype = htons(ni_query);
+	nih->ni_flags = ni_flag;
+	memcpy(nih + 1, ni_subject, ni_subject_len);
+	cc += ni_subject_len;
+
+	return cc;
+}
+
+int send_probe(void)
+{
+	int len, cc;
+
+	CLR((ntransmitted+1) % mx_dup_ck);
+
+	if (ni_query >= 0)
+		len = build_niquery(outpack);
+	else
+		len = build_echo(outpack);
+
 	if (cmsglen == 0) {
-		i = sendto(icmp_sock, (char *)outpack, cc, confirm,
-			   (struct sockaddr *) &whereto,
-			   sizeof(struct sockaddr_in6));
+		cc = sendto(icmp_sock, (char *)outpack, len, confirm,
+			    (struct sockaddr *) &whereto,
+			    sizeof(struct sockaddr_in6));
 	} else {
 		struct msghdr mhdr;
 		struct iovec iov;
 
-		iov.iov_len  = cc;
+		iov.iov_len  = len;
 		iov.iov_base = outpack;
 
 		mhdr.msg_name = &whereto;
@@ -773,11 +1155,154 @@ int send_probe(void)
 		mhdr.msg_control = cmsgbuf;
 		mhdr.msg_controllen = cmsglen;
 
-		i = sendmsg(icmp_sock, &mhdr, confirm);
+		cc = sendmsg(icmp_sock, &mhdr, confirm);
 	}
 	confirm = 0;
 
-	return (cc == i ? 0 : i);
+	return (cc == len ? 0 : cc);
+}
+
+void pr_echo_reply(__u8 *_icmph, int cc)
+{
+	struct icmp6_hdr *icmph = (struct icmp6_hdr *) _icmph;
+	printf(" icmp_seq=%u", ntohs(icmph->icmp6_seq));
+};
+
+static void putchar_safe(char c)
+{
+	if (isprint(c))
+		putchar(c);
+	else
+		printf("\\%03o", c);
+}
+
+void pr_niquery_reply_name(struct ni_hdr *nih, int len)
+{
+	__u8 *h = (__u8 *)(nih + 1);
+	__u8 *p = h + 4;
+	__u8 *end = (__u8 *)nih + len;
+	int continued = 0;
+	char buf[1024];
+	int ret;
+
+	len -= sizeof(struct ni_hdr) + 4;
+
+	if (len < 0) {
+		printf(" parse error (too short)");
+		return;
+	}
+	while (p < end) {
+		int fqdn = 1;
+		int len;
+		int i;
+
+		memset(buf, 0xff, sizeof(buf));
+
+		if (continued)
+			putchar(',');
+
+		ret = dn_expand(h, end, p, buf, sizeof(buf));
+		if (ret < 0) {
+			printf(" parse error (truncated)");
+			break;
+		}
+		if (p + ret < end && *(p + ret) == '\0')
+			fqdn = 0;
+		len = strlen(buf);
+
+		putchar(' ');
+		for (i = 0; i < strlen(buf); i++)
+			putchar_safe(buf[i]);
+		if (fqdn)
+			putchar('.');
+
+		p += ret + !fqdn;
+
+		continued = 1;
+	}
+}
+
+void pr_niquery_reply_addr(struct ni_hdr *nih, int len)
+{
+	__u8 *h = (__u8 *)(nih + 1);
+	__u8 *p = h + 4;
+	__u8 *end = (__u8 *)nih + len;
+	int af;
+	int aflen;
+	int continued = 0;
+	int truncated;
+	char buf[1024];
+
+	switch (ntohs(nih->ni_qtype)) {
+	case NI_QTYPE_IPV4ADDR:
+		af = AF_INET;
+		aflen = sizeof(struct in_addr);
+		truncated = nih->ni_flags & NI_IPV6ADDR_F_TRUNCATE;
+		break;
+	case NI_QTYPE_IPV6ADDR:
+		af = AF_INET6;
+		aflen = sizeof(struct in6_addr);
+		truncated = nih->ni_flags & NI_IPV4ADDR_F_TRUNCATE;
+		break;
+	default:
+		/* should not happen */
+		af = aflen = truncated = 0;
+	}
+	p = h;
+	if (len < 0) {
+		printf(" parse error (too short)");
+		return;
+	}
+
+	while (p < end) {
+		if (continued)
+			putchar(',');
+
+		if (p + sizeof(__u32) + aflen > end) {
+			printf(" parse error (truncated)");
+			break;
+		}
+		if (!inet_ntop(af, p + sizeof(__u32), buf, sizeof(buf)))
+			printf(" unexpeced error in inet_ntop(%s)",
+			       strerror(errno));
+		else
+			printf(" %s", buf);
+		p += sizeof(__u32) + aflen;
+
+		continued = 1;
+	}
+	if (truncated)
+		printf(" (truncated)");
+}
+
+void pr_niquery_reply(__u8 *_nih, int len)
+{
+	struct ni_hdr *nih = (struct ni_hdr *)_nih;
+
+	switch (nih->ni_code) {
+	case NI_SUCCESS:
+		switch (ntohs(nih->ni_qtype)) {
+		case NI_QTYPE_NAME:
+			pr_niquery_reply_name(nih, len);
+			break;
+		case NI_QTYPE_IPV4ADDR:
+		case NI_QTYPE_IPV6ADDR:
+			pr_niquery_reply_addr(nih, len);
+			break;
+		default:
+			printf(" unknown qtype(0x%02x)", ntohs(nih->ni_qtype));
+		}
+		break;
+	case NI_REFUSED:
+		printf(" refused");
+		break;
+	case NI_UNKNOWN:
+		printf(" unknown");
+		break;
+	default:
+		printf(" unknown code(%02x)", ntohs(nih->ni_code));
+	}
+	putchar(';');
 }
 
 /*
@@ -823,9 +1348,20 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 	if (icmph->icmp6_type == ICMP6_ECHO_REPLY) {
 		if (icmph->icmp6_id != ident)
 			return 1;
-		if (gather_statistics((__u8*)(icmph+1), cc,
+		if (gather_statistics((__u8*)icmph, sizeof(*icmph), cc,
 				      ntohs(icmph->icmp6_seq),
-				      hops, 0, tv, pr_addr(&from->sin6_addr)))
+				      hops, 0, tv, pr_addr(&from->sin6_addr),
+				      pr_echo_reply))
+			return 0;
+	} else if (icmph->icmp6_type == ICMPV6_NI_REPLY) {
+		struct ni_hdr *nih = (struct ni_hdr *)icmph;
+		__u16 seq = ntohs(*(__u16 *)nih->ni_nonce);
+		if (memcmp(&nih->ni_nonce[2], &ni_nonce[2], sizeof(ni_nonce) - sizeof(__u16)))
+			return 1;
+		if (gather_statistics((__u8*)icmph, sizeof(*icmph), cc,
+				      seq,
+				      hops, 0, tv, pr_addr(&from->sin6_addr),
+				      pr_niquery_reply))
 			return 0;
 	} else {
 		int nexthdr;
@@ -1020,7 +1556,8 @@ void usage(void)
 	fprintf(stderr,
 "Usage: ping6 [-LUdfnqrvVaAD] [-c count] [-i interval] [-w deadline]\n"
 "             [-p pattern] [-s packetsize] [-t ttl] [-I interface]\n"
-"             [-M mtu discovery hint] [-S sndbuf]\n"
-"             [-F flow label] [-Q traffic class] [hop1 ...] destination\n");
+"             [-M pmtudisc-hint] [-S sndbuf] [-F flowlabel] [-Q tclass]\n"
+"             [[-N nodeinfo-option] ...]\n"
+"             [hop1 ...] destination\n");
 	exit(2);
 }

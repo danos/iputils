@@ -4,7 +4,7 @@ LIBC_INCLUDE=/usr/include
 DEFINES= 
 
 #options if you have a bind>=4.9.4 libresolv (or, maybe, glibc)
-LDLIBS=-lresolv
+LDLIBS=
 ADDLIB=
 
 #options if you compile with libc5, and without a bind>=4.9.4 libresolv
@@ -27,8 +27,9 @@ all: $(TARGETS)
 
 
 tftpd: tftpd.o tftpsubs.o
+arping: arping.o -lsysfs
 ping: ping.o ping_common.o
-ping6: ping6.o ping_common.o
+ping6: ping6.o ping_common.o -lresolv -lcrypto
 ping.o ping6.o ping_common.o: ping_common.h
 tftpd.o tftpsubs.o: tftp.h
 
