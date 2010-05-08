@@ -1,6 +1,5 @@
 iputils (3:20100418-1) unstable; urgency=low
 
-  * NOT RELEASED YET
   * New upstream release.
   * Provide an iputils-clockdiff package (Closes: #199500)
 
