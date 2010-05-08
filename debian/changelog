@@ -1,8 +1,9 @@
 iputils (3:20100418-1) UNRELEASED; urgency=low
 
   * NOT RELEASED YET
+  * New upstream release.
 
- -- Noah Meyerhans <noahm@debian.org>  Sun, 04 Apr 2010 12:48:29 -0700
+ -- Noah Meyerhans <noahm@debian.org>  Fri, 07 May 2010 23:44:17 -0700
 
 iputils (3:20100214-1) unstable; urgency=low
 
