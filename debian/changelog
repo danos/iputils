@@ -1,3 +1,10 @@
+iputils (3:20100418-2) unstable; urgency=high
+
+  * Fix CVE-2010-2529 - resource consumption triggered by specially crafted
+    ICMP echo reply
+
+ -- Noah Meyerhans <noahm@debian.org>  Fri, 23 Jul 2010 21:30:40 -0700
+
 iputils (3:20100418-1) unstable; urgency=low
 
   * New upstream release.
