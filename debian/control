@@ -4,8 +4,8 @@ Priority: extra
 Maintainer: Noah Meyerhans <noahm@debian.org>
 Standards-Version: 3.8.4.0
 Build-Depends: debhelper (>= 7), sp, sgmlspl, docbook, libsysfs-dev, libssl-dev
-Vcs-Svn: svn+https://svn.csail.mit.edu/iputils
-Vcs-Browser: https://svn.csail.mit.edu/iputils
+Vcs-Git: git://git.debian.org/collab-maint/iputils.git
+Vcs-Browser: http://git.debian.org/?p=collab-maint/iputils.git;a=summary
 
 Package: iputils-ping
 Architecture: any
