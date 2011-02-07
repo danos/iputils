@@ -1,3 +1,11 @@
+iputils (3:20101006-1) unstable; urgency=low
+
+  * New upstream release.
+  * Remove patches that are now applied upstream.
+  * Update Vcs-* fields in debian/control to point to git repos.
+
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 06 Feb 2011 21:35:28 -0800
+
 iputils (3:20100418-3) unstable; urgency=low
 
   * Apply upstream's fix to a coding error that prevented the broadcast
