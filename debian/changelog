@@ -4,8 +4,10 @@ iputils (3:20101006-1) unstable; urgency=low
   * Remove patches that are now applied upstream.
   * Update Vcs-* fields in debian/control to point to git repos.
   * Update debian/copyright to include the BSD license text.
+  * Override lintian's possible-gpl-code-linked-with-openssl error on
+    iputils-ping.  ping6 links against libcrypto and is BSD licensed.
 
- -- Noah Meyerhans <noahm@debian.org>  Sun, 06 Feb 2011 21:35:28 -0800
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 20 Feb 2011 21:28:54 -0800
 
 iputils (3:20100418-3) unstable; urgency=low
 
