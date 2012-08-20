@@ -3,6 +3,8 @@ iputils (3:20101006-2) UNRELEASED; urgency=low
   * Fix RFC 4620 node info queries in ping6 (Closes: 683324)
   * Fix regression in ping* causing audible notifications to always
     be enabled when flood pinging (Closes: 601147)
+  * Flush stdout when processing truncated ping* replies 
+    (Closes: 628893)
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 19 Aug 2012 21:31:38 -0700
 
