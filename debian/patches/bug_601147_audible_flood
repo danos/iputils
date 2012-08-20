@@ -1,0 +1,50 @@
+Index: iputils/ping.c
+===================================================================
+--- iputils.orig/ping.c	2012-08-19 21:37:16.000000000 -0700
++++ iputils/ping.c	2012-08-19 21:48:30.000000000 -0700
+@@ -806,16 +806,16 @@
+ 		return 0;
+ 	}
+ 
++	if (options & F_AUDIBLE) {
++		putchar('\a');
++		if(options & F_FLOOD)
++			fflush(stdout);
++	}
+ 	if (!(options & F_FLOOD)) {
+ 		pr_options(buf + sizeof(struct iphdr), hlen);
+ 
+-		if (options & F_AUDIBLE)
+-			putchar('\a');
+ 		putchar('\n');
+ 		fflush(stdout);
+-	} else {
+-		putchar('\a');
+-		fflush(stdout);
+ 	}
+ 	return 0;
+ }
+Index: iputils/ping6.c
+===================================================================
+--- iputils.orig/ping6.c	2012-08-19 21:37:16.000000000 -0700
++++ iputils/ping6.c	2012-08-19 21:50:09.000000000 -0700
+@@ -1411,14 +1411,14 @@
+ 		pr_icmph(icmph->icmp6_type, icmph->icmp6_code, ntohl(icmph->icmp6_mtu));
+ 	}
+ 
++	if (options & F_AUDIBLE) {
++		putchar('\a');
++		if(options & F_FLOOD)
++			fflush(stdout);
++	}
+ 	if (!(options & F_FLOOD)) {
+-		if (options & F_AUDIBLE)
+-			putchar('\a');
+ 		putchar('\n');
+ 		fflush(stdout);
+-	} else {
+-		putchar('\a');
+-		fflush(stdout);
+ 	}
+ 	return 0;
+ }
