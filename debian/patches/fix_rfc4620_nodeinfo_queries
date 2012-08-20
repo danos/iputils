@@ -1,0 +1,13 @@
+Index: iputils/ping6.c
+===================================================================
+--- iputils.orig/ping6.c	2012-08-19 21:16:39.000000000 -0700
++++ iputils/ping6.c	2012-08-19 21:21:45.000000000 -0700
+@@ -357,7 +357,7 @@
+ 	hints.ai_socktype = SOCK_DGRAM;
+ 
+ 	gai = getaddrinfo(arg, 0, &hints, &ai0);
+-	if (!gai) {
++	if (gai) {
+ 		fprintf(stderr, "Unknown host: %s\n", arg);
+ 		return -1;
+ 	}
