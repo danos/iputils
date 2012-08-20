@@ -1,3 +1,9 @@
+iputils (3:20101006-2) UNRELEASED; urgency=low
+
+  * Fix RFC 4620 node info queries in ping6 (Closes: 683324)
+
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 19 Aug 2012 21:31:38 -0700
+
 iputils (3:20101006-1) unstable; urgency=low
 
   * New upstream release.
