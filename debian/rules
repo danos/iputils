@@ -13,11 +13,15 @@ export DH_OPTIONS
 configure:
 	dh_testdir
 
-build: configure
+build-arch: configure
 	dh_testdir
-
 	$(MAKE)
+
+build-indep: configure
+	dh_testdir
 	$(MAKE) -C doc man
+
+build: build-arch build-indep
 
 clean:
 	dh_testdir
