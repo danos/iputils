@@ -1,0 +1,29 @@
+Index: iputils/Makefile
+===================================================================
+--- iputils.orig/Makefile	2012-08-19 23:44:30.000000000 -0700
++++ iputils/Makefile	2012-08-19 23:50:23.000000000 -0700
+@@ -16,7 +16,7 @@
+ CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall -g
+ CFLAGS=$(CCOPT) $(GLIBCFIX) $(DEFINES) 
+ 
+-IPV4_TARGETS=tracepath ping arping clockdiff
++IPV4_TARGETS=tracepath ping clockdiff rdisc arping tftpd rarpd
+ IPV6_TARGETS=tracepath6 traceroute6 ping6
+ TARGETS=$(IPV4_TARGETS) $(IPV6_TARGETS)
+ 
+@@ -27,9 +27,13 @@
+ 
+ 
+ tftpd: tftpd.o tftpsubs.o
+-arping: arping.o -lsysfs
++	$(CC) $(LDFLAGS) tftpd.o tftpsubs.o -o tftpd
++arping: arping.o
++	$(CC) $(LDFLAGS) arping.o -o arping -lsysfs
+ ping: ping.o ping_common.o
+-ping6: ping6.o ping_common.o -lresolv -lcrypto
++	$(CC) $(LDFLAGS) ping.o ping_common.o -o ping
++ping6: ping6.o ping_common.o
++	$(CC) $(LDFLAGS) ping6.o ping_common.o -lresolv -lcrypto -o ping6
+ ping.o ping6.o ping_common.o: ping_common.h
+ tftpd.o tftpsubs.o: tftp.h
+ 
