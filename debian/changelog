@@ -1,4 +1,4 @@
-iputils (3:20101006-2) UNRELEASED; urgency=low
+iputils (3:20101006-2) unstable; urgency=low
 
   * Fix RFC 4620 node info queries in ping6 (Closes: 683324)
   * Fix regression in ping* causing audible notifications to always
@@ -7,6 +7,7 @@ iputils (3:20101006-2) UNRELEASED; urgency=low
     (Closes: 628893)
   * Use dpkg-buildflags to set build flags.
   * Add build-arch and build-indep rules in debian/rules
+  * Bump standards compliance to 3.9.3.1
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 19 Aug 2012 21:31:38 -0700
 
