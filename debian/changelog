@@ -1,3 +1,10 @@
+iputils (3:20101006-3) UNRELEASED; urgency=low
+
+  * Fix CFLAGS, which never actually propagated from debian/rules
+    to the compiler in the previous release (Closes: 656023)
+
+ -- Noah Meyerhans <noahm@debian.org>  Wed, 29 Aug 2012 09:09:21 -0700
+
 iputils (3:20101006-2) unstable; urgency=low
 
   * Fix RFC 4620 node info queries in ping6 (Closes: 683324)

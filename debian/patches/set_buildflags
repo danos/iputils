@@ -1,16 +1,18 @@
 Index: iputils/Makefile
 ===================================================================
---- iputils.orig/Makefile	2012-08-19 23:44:30.000000000 -0700
-+++ iputils/Makefile	2012-08-19 23:50:23.000000000 -0700
-@@ -16,7 +16,7 @@
- CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall -g
- CFLAGS=$(CCOPT) $(GLIBCFIX) $(DEFINES) 
+--- iputils.orig/Makefile	2012-08-29 09:06:16.000000000 -0700
++++ iputils/Makefile	2012-08-29 09:08:33.000000000 -0700
+@@ -13,8 +13,8 @@
+ CC=gcc
+ # What a pity, all new gccs are buggy and -Werror does not work. Sigh.
+ #CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall -g -Werror
+-CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall -g
+-CFLAGS=$(CCOPT) $(GLIBCFIX) $(DEFINES) 
++CCOPT=-D_GNU_SOURCE -Wstrict-prototypes -Wall
++CFLAGS=$(DEBIAN_CFLAGS) $(CCOPT) $(GLIBCFIX) $(DEFINES)
  
--IPV4_TARGETS=tracepath ping arping clockdiff
-+IPV4_TARGETS=tracepath ping clockdiff rdisc arping tftpd rarpd
+ IPV4_TARGETS=tracepath ping arping clockdiff
  IPV6_TARGETS=tracepath6 traceroute6 ping6
- TARGETS=$(IPV4_TARGETS) $(IPV6_TARGETS)
- 
 @@ -27,9 +27,13 @@
  
  
