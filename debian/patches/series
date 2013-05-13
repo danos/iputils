@@ -1,4 +1,3 @@
-fix-dead-host-ping-stats.diff
 add-icmp-return-codes.diff
 use_gethostbyname2.diff
 cleanup-docbook-formatting.diff
