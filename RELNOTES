@@ -1,3 +1,261 @@
+[s20121221]
+
+YOSHIFUJI Hideaki (14):
+      ninfod: Use unsigned int for digest.
+      ninfod: nanosleep(3) needs <time.h>.
+      ninfod: Too many arguments for syslog(3)/fprintf(3) via DEBUG().
+      ninfod: Fix several warnings on ununsed variables.
+      ping6: Print unknown ICMP type.
+      ping6: Fix flowlabel switch (-F option).
+      arping: Fix sysfs decimal/hexadecimal parser for libsysfs support.
+      ping6: Use GNU TLS by default.
+      ninfod: Fix memory leakage in error path.
+      ninfod: Fix off-by-one error to check possible programming error (again).
+      ninfod: Do not expose freed buffer to caller.
+      ping6: Ensure to initialize msghdr.
+      ninfod: Support GNU TLS.
+      ninfod: Allow printing usage without permission errors.
+
+
+[s20121207]
+
+YOSHIFUJI Hideaki (2):
+      RELNOTES: Typos.
+      ping,ping6: Check outgoing device only if specified.
+
+
+[s20121205]
+
+Jan Synacek (1):
+      ping,tracepath doc: Fix missing end tags.
+
+YOSHIFUJI Hideaki (35):
+      tracepath6: packet length option (-l) did not have any effect.
+      tracepath,tracepath6: Fix pktlen message.
+      tracepath,tracepath6: Use calloc(3) instead of using stack.
+      tracepath6: Ignore families other than IPv4 and IPv6.
+      ping6: Improve randomness of NI Nonce.
+      tracepath,tracepath6 doc: Fix default pktlen.
+      ping,rdisc: Optimize checksumming.
+      makefile: Static link support for crypto, resolv, cap and sysfs.
+      doc: Ajdust spaces around sqare brackets.
+      ping,rdisc: Use macro to get odd byte when checksumming.
+      ping6: Do not try to free memory pointed by uninitialized variable on error path.
+      arping: Allow building without default interface.
+      arping: No default interface by default.
+      arping: Allow printing usage without permission errors.
+      ping,ping6: Allow printing usage without permission errors.
+      ping,ping6: Fix cap_t leakage.
+      arping,ping,ping6: Do not ideologically check return value from cap_free,cap_{set,get}_flag().
+      arping: Fix sysfs_class leakage on error path.
+      arping: Some comments for new functions for finding devices support.
+      arping: Typo in type declaration.
+      makefile: Use call function for external libraries.
+      makefile: Add more comments.
+      arping: Ensure to fail if no appropriate device found with sysfs.
+      arping: Enforce user to specify device (-I) if multiple devices found.
+      Makefile: parameterize options for linking libraries.
+      Makefile: Use shell function instead if backquotes.
+      Makefile: Ensure to have same date when making snapshot.
+      spec: Maintainer does not use ipsec.spec.
+      spec: partially sync with fedora.
+      Makefile: Bump date in iputils.spec as well.
+      spec: Add exmple lines for suid-root installation
+      spec: Sort changelog.
+      ping: Exit on SO_BINDTODEVICE failure.
+      ping: Warn if kernel has selected source address from other interface.
+      ping: Clarify difference between -I device and -I addr.
+
+
+[s20121126]
+
+YOSHIFUJI Hideaki (5):
+      tracepath: Repair tracepath without -p option.
+      tracepath,tracepath6: -p option in usage.
+      ping,ping6: Use MAX_DUP_CHK directly, not using mx_dup_chk variable.
+      ping,ping6: Abstract received bitmap macros/definitions.
+      ping,ping6: Use __u64 or __u32 for bitmap.
+
+
+[s20121125]
+
+YOSHIFUJI Hideaki (30):
+      ping6: Use IN6_IS_ADDR_UNSPECIFIED() instead of our own helper function.
+      ping6 doc: Explicitly describe ping6 is IPv6 version if ping.
+      ping6: Deprecate source routing by default (RFC5095).
+      ping6: Use RFC3542 functions and definition for source routing.
+      ping6: Introduce niquery_is_enabled() for readability.
+      arping doc: interface is optional (-I option).
+      ping: Eliminate dirty hack to cope with ancient egcs bug.
+      Makefile: Fix missing right parenthes in comment.
+      arping: Fix build failure with USE_SYSFS=yes and/or WITHOUT_IFADDRS=yes
+      arping: Unify source files.
+      arping: Reorder functions and comment out unsued code.
+      arping,ping,ping6,tracepath,traceroute6 Makefile: Support static link of libidn by USE_IDN=static.
+      Makefile: Minimize statically linked libraries.
+      ping6: Do not clear seq check array twice for NI.
+      ping6: Use MD5_DIGEST_LENGTH instead of magic value 16.
+      ping6: Introduce helper functions for nonce in NI.
+      ping6: Introduce NI_NONCE_SIZE macro instead of magic value 8.
+      ping6: Ensure to call srand() to get some randomness in NI Nonce.
+      ping6: Generate different NI Nonce in each NI Query (Memory version).
+      ping6: Generate different NI Nonce in each NI Query (MD5 version).
+      ping6: Cache NI Nonce.
+      ping6: Print 'sequence number' embedded in NI Nonce.
+      ninfod: Do noy try to memcpy to self.
+      ninfod Makefile: More precise dependencies.
+      ninfod: Discard multicat packet outside linklocal scope.
+      ninfod: Apply default policy to refuse queries from global addresses.
+      ninfod: Normalize timespec for delay.
+      ninfod: Fix double-free without pthreads.
+      ninfod: Do not mix output from multiple threads.
+      ninfod: Employ internal buffer in stderrlog() for common case.
+
+
+[s20121121]
+
+Jan Synacek (2):
+      ping,ping6: Add newline to error message.
+      ping: Don't free an unintialized value.
+
+YOSHIFUJI Hideaki (31):
+      arping,clockdiff,ping,rarpd,rdisc,traceroute6 doc: s/CAP_NET_RAWIO/CAP_NET_RAW/.
+      ping,ping6: Do not assume radix point is denoted by '.' (-i option).
+      arping,ping,ping6,rdisc,traceroute6: Fix version string.
+      makefile: Give -fno-strict-aliasing to compiler by default.
+      ping6: Use SCOPE_DELIMITER.
+      Makefile: Remove -lm from ADDLIB.
+      rdisc_srv,Makefile: Fix build.
+      rdisc_srv,Makefile: Build rdisc_srv with make all.
+      arping: set_device_broadcast() does not need to store return value of sub-functions.
+      arping,Makefile: Make default interface configurable.
+      arping: Do not allow empty device name (-I option).
+      arping: Introduce check_ifflags() helper function.
+      arping: Introduce device structure to hold output device information.
+      arping: ALlow no default interface and select one by getifaddrs().
+      arping: Introduce 2nd (legacy) method to select interface by ioctls.
+      arping,Makefile: Allow build without getifaddrs() with WITHOUT_IFADDRS=yes.
+      Makefile: Use $< instead of $^ to complile C source code.
+      ping,ping6: Reorder command-line options in alphabetical order.
+      ping6: Show suboptions for Node Information Queries if -N suboption is invalid.
+      ping,ping6 doc: Readability for TOS (-Q) option.
+      rdisc: Missing new line after usage.
+      rdisc: Make rdisc with responder support if configured.
+      Makefile: distclean depends on clean.
+      Makefile: Default to -O3.
+      Makefile: Minimize options to gcc.
+      Makefile: Add rule to build assembly files.
+      arping,Makefile: 3rd legacy implementation to check network devices.
+      arping: Less ifdefs.
+      rdisc doc: Document -r, -p and -T options.
+      ping6: NI Subjecet address did not work (-N subject-{ipv6,ipv4] suboptions).
+      ping6: Ensure to detect subject type conflicts.
+
+
+[s20121114]
+
+Jan Synacek (2):
+      clockdiff: remove unused variable
+      ping: Wrap SO_BINDTODEVICE with the correct capability.
+
+YOSHIFUJI Hideaki (13):
+      ping: IP_MULTICAST_IF does not need CAP_NET_RAW.
+      ping6: Check ranges of flowlabel (-F option) and tclass (-Q option) arguments.
+      ping6: Accept 0x-notation for flowlabel (-F option) and tclass (-Q option) arguments.
+      ping,ping6: Manual update regarding -F, -Q and -N option.
+      arping,ping,ping6: Defer exitting to allow users to see usage.
+      arping,ping,ping6,ninfod: Change euid to uid (non-root) even if capabiliy is enabled.
+      ninfod: Add configure.
+      ninfod: libcap support to drop capabilities.
+      ninfod: Add run as user (-u user) option.
+      ninfod: Fix usage message.
+      arping,clockdiff,rarpd,rdisc,tftpd: Change RFC source to tools.ietf.org.
+      ninfod: Add ninfod(8) manpage.
+      makefile: Add ninfod, distclean targets.
+
+
+[s20121112]
+
+Sergey Fionov (1):
+      ping,ping6: Fallback to numeric addresses while exiting
+
+YOSHIFUJI Hideaki (18):
+      ping,ping6: Rework capability support and Make sure -m and -I options work.
+      ping,tracepath: Spelling fixes in manpages.
+      ping,ping6: Fix integer overflow with large interval value (-i option).
+      clockdiff: Make it work with large pid.
+      ping,ping6: Make in_pr_addr volatile.
+      arping: Do not quit too early with large deadline value (-w option).
+      arping: Maintain minimum capabilities for SO_BINDTODEVICE(-I option).
+      ping: Fix recorded route comparison.
+      arping: Use getifaddrs() to get broadcast address.
+      ping6: Fix typo in error message.
+      ping6: Generate NI Group Address and Subject Name at once.
+      ping,ping6: Unmask signals on start-up.
+      arping: Build with USE_CAP=no.
+      arping,ping,ping6,tracepath,tracepath6,traceroute6: Experimental IDN support.
+      ping6: IDN support for the Subject Name in NI Query.
+      tracepath,tracepath6: Introduce -p option for port.
+      ping6: Add missing definitions/declarations for flowlabel management (-F option).
+      makefile: Do not include merge commits in RELNOTES.
+
+
+[s20121106]
+
+YOSHIFUJI Hideaki (5):
+      ninfod: Attatch configure and renew config.h.in.
+      makefile: clean-up
+      tracepath6: Print reason on getadrinfo() failure.
+      ping,ping6: Fix hang with -f option.
+      ping: Make sure to print C if checksum failed with -f option.
+
+
+[s20121011]
+
+Jan Synacek (2):
+      ping,ping6: Defer the dropping if the "-m" is specified and correct capability is set.
+      ping: Fix typo in echo reply
+
+Ole Bjorn Hessen (1):
+      ping: report outstanding packets before sending next packet
+
+YOSHIFUJI Hideaki (32):
+      ping,ping6: Add -D to synopsis.
+      ping: More icmp code descriptions.
+      ping,ping6: Hide ipg/ewma info without packets received.
+      ping6: Remove unused variable.
+      ping6: Help for -N suboptions.
+      tracepath,tracepath6: Use argument type of int for field width specifier.
+      clockdiff: Call nice() before changing effective uid.
+      rdisc: Use fputs() instead of fprintf() to shut up gcc warning.
+      rarpd: Check return value of chdir().
+      makefile: Introduce new variable for capability support.
+      ping,ping6: Check return value of write(2) for stdout.
+      ping6,tracepath,tracepath6: Do not dereference type-punned pointer directly.
+      Makefile: host changed from takos to pleiades.
+      ping6: Provide enough buffer for dn_comp() and make NI Query with Name subject work.
+      ping6: Consolidate error path of niquery_option_subject_name_handler().
+      ninfod: Node Information Query (RFC4620) daemon from USAGI Project.
+      ninfod: struct in6_pktinfo requires -D_GNU_SOURCE.
+      ninfod: Use %zu format string for size_t variable.
+      ninfod: Add missing entry for ENABLE_SUPTYPES in config.h.in.
+      ninfod: Support newer environment supporting RFC3542.
+      ninfod: Fix format string for string returned from strerror(3).
+      ninfod: Check return value of fscanf(3).
+      ninfod: Fix off-by-one error to check possible programming error.
+      ninfod: Add datarootdir.
+      ninfod: Use __func__ instead of __FUNCTION__.
+      ninfod: Introduce ARRAY_SIZE macro for counting number of elements in an array.
+      ninfod: Delete ninfod.sh by make distclean, not by make clean.
+      ping6: Do not try to use result buffer when dn_comp(3) failed.
+      ping,ping6: ifdef guard for inline function for capability support and fix build with USE_CAP=no.
+      makefile: Do not use "-llib" dependency.
+      arping: build without sysfs support (USE_SYSFS=no).
+
+Ángel González (1):
+      iputils: Add capability dropping
+
+
 [s20101006]
 
 Chris Caputo (1):
@@ -16,8 +274,6 @@ YOSHIFUJI Hideaki (4):
 [s20100418]
 
 YOSHIFUJI Hideaki (28):
-      Merge branch 'timestamp'
-      Merge branch 'miscommit-20100210'
       ping6: Use IPV6_TCLASS to set outgoing traffic class if available.
       ping: Make build_echo(), gather_statistics() more generic.
       ping6: Experimental support for Node Information Queries (RFC4620).
@@ -66,7 +322,6 @@ YOSHIFUJI Hideaki (11):
       tracepath: Fix documentation typo.
       Use sysconf(_SC_OPEN_MAX) instead of OPEN_MAX.
       ping,ping6: Add -D option to print timestamp.
-      Merge branch 'timestamp'
 
 
 [s20071127]
@@ -105,7 +360,6 @@ YOSHIFUJI Hideaki (9):
       [TRACEPATH] Print usage if we met incorrect option.
       [PING6]: Fix compilation error with glibc-2.4 and later.
       [PING6]: Use getaddrinfo() to allow scoped addresses
-      Merge branch 'miscommit-20060927'
       [PING6]: Ensure not to reverse-lookup if target is numeric address.
 
 

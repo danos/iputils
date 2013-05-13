@@ -26,6 +26,11 @@
 #include <sys/uio.h>
 #include <arpa/inet.h>
 
+#ifdef USE_IDN
+#include <idna.h>
+#include <locale.h>
+#endif
+
 #ifndef SOL_IPV6
 #define SOL_IPV6 IPPROTO_IPV6
 #endif
@@ -51,8 +56,9 @@ struct sockaddr_storage target;
 socklen_t targetlen;
 __u16 base_port;
 
-int overhead = 48;
-int mtu = 128000;
+int overhead;
+int mtu;
+void *pktbuf;
 int hops_to = -1;
 int hops_from = -1;
 int no_resolve = 0;
@@ -80,7 +86,7 @@ void data_wait(int fd)
 
 void print_host(const char *a, const char *b, int both)
 {
-	size_t plen = 0;
+	int plen = 0;
 	printf("%s", a);
 	plen = strlen(a);
 	if (both) {
@@ -173,7 +179,7 @@ restart:
 #ifdef IPV6_2292HOPLIMIT
 			case IPV6_2292HOPLIMIT:
 #endif
-				rethops = *(int*)CMSG_DATA(cmsg);
+				memcpy(&rethops, CMSG_DATA(cmsg), sizeof(rethops));
 				break;
 			default:
 				printf("cmsg6:%d\n ", cmsg->cmsg_type);
@@ -232,7 +238,11 @@ restart:
 			fflush(stdout);
 			if (getnameinfo(sa, salen,
 					hbuf, sizeof(hbuf), NULL, 0,
-					0))
+					0
+#ifdef USE_IDN
+					| NI_IDN
+#endif
+				        ))
 				strcpy(hbuf, "???");
 		} else
 			hbuf[0] = 0;
@@ -309,11 +319,9 @@ restart:
 int probe_ttl(int fd, int ttl)
 {
 	int i;
-	char sndbuf[mtu];
-	struct probehdr *hdr = (struct probehdr*)sndbuf;
+	struct probehdr *hdr = pktbuf;
 
-	memset(sndbuf, 0, mtu);
-
+	memset(pktbuf, 0, mtu);
 restart:
 
 	for (i=0; i<10; i++) {
@@ -331,7 +339,7 @@ restart:
 		gettimeofday(&hdr->tv, NULL);
 		his[hisptr].hops = ttl;
 		his[hisptr].sendtime = hdr->tv;
-		if (sendto(fd, sndbuf, mtu-overhead, 0, (struct sockaddr *)&target, targetlen) > 0)
+		if (sendto(fd, pktbuf, mtu-overhead, 0, (struct sockaddr *)&target, targetlen) > 0)
 			break;
 		res = recverr(fd, ttl);
 		his[hisptr].hops = 0;
@@ -344,7 +352,7 @@ restart:
 
 	if (i<10) {
 		data_wait(fd);
-		if (recv(fd, sndbuf, sizeof(sndbuf), MSG_DONTWAIT) > 0) {
+		if (recv(fd, pktbuf, mtu, MSG_DONTWAIT) > 0) {
 			printf("%2d?: reply received 8)\n", ttl);
 			return 0;
 		}
@@ -359,7 +367,7 @@ static void usage(void) __attribute((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: tracepath6 [-n] [-b] [-l <len>] <destination>[/<port>]\n");
+	fprintf(stderr, "Usage: tracepath6 [-n] [-b] [-l <len>] [-p port] <destination>\n");
 	exit(-1);
 }
 
@@ -375,7 +383,11 @@ int main(int argc, char **argv)
 	int gai;
 	char pbuf[NI_MAXSERV];
 
-	while ((ch = getopt(argc, argv, "nbh?l:")) != EOF) {
+#ifdef USE_IDN
+	setlocale(LC_ALL, "");
+#endif
+
+	while ((ch = getopt(argc, argv, "nbh?l:p:")) != EOF) {
 		switch(ch) {
 		case 'n':
 			no_resolve = 1;
@@ -384,10 +396,10 @@ int main(int argc, char **argv)
 			show_both = 1;
 			break;
 		case 'l':
-			if ((mtu = atoi(optarg)) <= overhead) {
-				fprintf(stderr, "Error: length must be >= %d\n", overhead);
-				exit(1);
-			}
+			mtu = atoi(optarg);
+			break;
+		case 'p':
+			base_port = atoi(optarg);
 			break;
 		default:
 			usage();
@@ -400,12 +412,15 @@ int main(int argc, char **argv)
 	if (argc != 1)
 		usage();
 
-	p = strchr(argv[0], '/');
-	if (p) {
-		*p = 0;
-		base_port = (unsigned)atoi(p+1);
-	} else {
-		base_port = 44444;
+	/* Backward compatiblity */
+	if (!base_port) {
+		p = strchr(argv[0], '/');
+		if (p) {
+			*p = 0;
+			base_port = (unsigned)atoi(p+1);
+		} else {
+			base_port = 44444;
+		}
 	}
 	sprintf(pbuf, "%u", base_port);
 
@@ -413,10 +428,12 @@ int main(int argc, char **argv)
 	hints.ai_family = family;
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_protocol = IPPROTO_UDP;
-	hints.ai_flags = 0;
+#ifdef USE_IDN
+	hints.ai_flags = AI_IDN;
+#endif
 	gai = getaddrinfo(argv[0], pbuf, &hints, &ai0);
 	if (gai) {
-		herror("getaddrinfo");	/*XXX*/
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai));
 		exit(1);
 	}
 
@@ -424,6 +441,9 @@ int main(int argc, char **argv)
 	for (ai = ai0; ai; ai = ai->ai_next) {
 		/* sanity check */
 		if (family && ai->ai_family != family)
+			continue;
+		if (ai->ai_family != AF_INET6 &&
+		    ai->ai_family != AF_INET)
 			continue;
 		family = ai->ai_family;
 		fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
@@ -441,8 +461,12 @@ int main(int argc, char **argv)
 
 	switch (family) {
 	case AF_INET6:
-		mtu = 128000;
 		overhead = 48;
+		if (!mtu)
+			mtu = 128000;
+		if (mtu <= overhead)
+			goto pktlen_error;
+
 		on = IPV6_PMTUDISC_DO;
 		if (setsockopt(fd, SOL_IPV6, IPV6_MTU_DISCOVER, &on, sizeof(on)) &&
 		    (on = IPV6_PMTUDISC_DO,
@@ -471,8 +495,12 @@ int main(int argc, char **argv)
 		mapped = 1;
 		/*FALLTHROUGH*/
 	case AF_INET:
-		mtu = 65535;
 		overhead = 28;
+		if (!mtu)
+			mtu = 65535;
+		if (mtu <= overhead)
+			goto pktlen_error;
+
 		on = IP_PMTUDISC_DO;
 		if (setsockopt(fd, SOL_IP, IP_MTU_DISCOVER, &on, sizeof(on))) {
 			perror("IP_MTU_DISCOVER");
@@ -487,6 +515,12 @@ int main(int argc, char **argv)
 			perror("IP_RECVTTL");
 			exit(1);
 		}
+	}
+
+	pktbuf = malloc(mtu);
+	if (!pktbuf) {
+		perror("malloc");
+		exit(1);
 	}
 
 	for (ttl=1; ttl<32; ttl++) {
@@ -537,4 +571,9 @@ done:
 		printf("back %d ", hops_from);
 	printf("\n");
 	exit(0);
+
+pktlen_error:
+	fprintf(stderr, "Error: pktlen must be > %d and <= %d\n",
+		overhead, INT_MAX);
+	exit(1);
 }

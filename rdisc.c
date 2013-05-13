@@ -161,10 +161,10 @@ static int interfaces_size;			/* Number of elements in interfaces */
 /* fraser */
 int debugfile;
 
-char usage[] =
+const char usage[] =
 "Usage:	rdisc [-b] [-d] [-s] [-v] [-f] [-a] [-V] [send_address] [receive_address]\n"
 #ifdef RDISC_SERVER
-"       rdisc -r [-b] [-d] [-s] [-v] [-f] [-a] [-V] [-p <preference>] [-T <secs>] \n"
+"       rdisc -r [-b] [-d] [-s] [-v] [-f] [-a] [-V] [-p <preference>] [-T <secs>]\n"
 "		 [send_address] [receive_address]\n"
 #endif
 ;
@@ -231,7 +231,7 @@ static __inline__ int ismulticast(struct sockaddr_in *sin)
 
 static void prusage(void)
 {
-	(void) fprintf(stderr, usage);
+	fputs(usage, stderr);
 	exit(1);
 }
 
@@ -328,7 +328,7 @@ int main(int argc, char **argv)
 				forever = 1;
 				break;
 			case 'V':
-				printf("rdisc utility, iputils-ss%s\n", SNAPSHOT);
+				printf("rdisc utility, iputils-%s\n", SNAPSHOT);
 				exit(0);
 #ifdef RDISC_SERVER
 			case 'T':
@@ -885,7 +885,7 @@ pr_pack(char *buf, int cc, struct sockaddr_in *from)
 				((max_adv_int - min_adv_int)
 				 * (random() % 1000)/1000);
 		} else {
-			sin.sin_addr = ip->saddr;
+			sin.sin_addr.s_addr = ip->saddr;
 			if (!is_directly_connected(sin.sin_addr)) {
 				if (verbose)
 					logtrace("ICMP %s from %s: source not directly connected\n",
@@ -910,6 +910,14 @@ pr_pack(char *buf, int cc, struct sockaddr_in *from)
  * Checksum routine for Internet Protocol family headers (C Version)
  *
  */
+#if BYTE_ORDER == LITTLE_ENDIAN
+# define ODDBYTE(v)	(v)
+#elif BYTE_ORDER == BIG_ENDIAN
+# define ODDBYTE(v)	((u_short)(v) << 8)
+#else
+# define ODDBYTE(v)	htons((u_short)(v) << 8)
+#endif
+
 u_short in_cksum(u_short *addr, int len)
 {
 	register int nleft = len;
@@ -930,7 +938,7 @@ u_short in_cksum(u_short *addr, int len)
 
 	/* mop up an odd byte, if necessary */
 	if( nleft == 1 )
-		sum += htons(*(u_char *)w<<8);
+		sum += ODDBYTE(*(u_char *)w);	/* le16toh() may be unavailable on old systems */
 
 	/*
 	 * add back carry outs from top 16 bits to low 16 bits
@@ -955,8 +963,6 @@ finish()
 {
 #ifdef RDISC_SERVER
 	if (responder) {
-		int i;
-
 		/* Send out a packet with a preference so that all
 		 * hosts will know that we are dead.
 		 *

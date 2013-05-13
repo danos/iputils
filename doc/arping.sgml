@@ -67,7 +67,7 @@ option, <command/arping/ waits for
   <term><option/-D/</term>
   <listitem><para>
 Duplicate address detection mode (DAD). See 
-<ulink url="ftp://ftp.isi.edu/in-notes/rfc2131.txt">RFC2131, 4.4.1</ulink>.
+<ulink url="http://tools.ietf.org/rfc/rfc2131.txt">RFC2131, 4.4.1</ulink>.
 Returns 0, if DAD succeeded i.e. no replies are received
   </para></listitem>
  </varlistentry>
@@ -82,8 +82,7 @@ Finish after the first reply confirming that target is alive.
  <varlistentry>
   <term><option><anchor id="opt.interface">-I <replaceable/interface/</option></term>
   <listitem><para>
-Name of network device where to send ARP REQUEST packets. This option
-is required.
+Name of network device where to send ARP REQUEST packets.
   </para></listitem>
  </varlistentry>
 
@@ -182,7 +181,7 @@ It is now maintained by
 
 <refsect1><title>SECURITY</title>
 <para>
-<command/arping/ requires <constant/CAP_NET_RAWIO/ capability
+<command/arping/ requires <constant/CAP_NET_RAW/ capability
 to be executed. It is not recommended to be used as set-uid root,
 because it allows user to modify ARP caches of neighbour hosts.
 </para>

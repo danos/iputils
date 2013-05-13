@@ -23,7 +23,7 @@
 <refsect1><title>DESCRIPTION</title>
 <para>
 Listens
-<ulink url="ftp://ftp.isi.edu/in-notes/rfc903.txt">RARP</ulink>
+<ulink url="http://tools.ietf.org/rfc/rfc903.txt">RARP</ulink>
 requests from clients. Provided MAC address of client
 is found in <filename>/etc/ethers</filename> database and
 obtained host name is resolvable to an IP address appropriate
@@ -42,9 +42,9 @@ an image appropriate for SUM4M in directory <filename>/etc/tftpboot</filename>.
 <refsect1><title>WARNING</title>
 <para>
 This facility is deeply obsoleted by
-<ulink url="ftp://ftp.isi.edu/in-notes/rfc951.txt">BOOTP</ulink>
+<ulink url="http://tools.ietf.org/rfc/rfc951.txt">BOOTP</ulink>
 and later
-<ulink url="ftp://ftp.isi.edu/in-notes/rfc2131.txt">DHCP</ulink> protocols.
+<ulink url="http://tools.ietf.org/rfc/rfc2131.txt">DHCP</ulink> protocols.
 However, some clients really still need this to boot.
 </para>
 </refsect1>
@@ -125,7 +125,7 @@ It is now maintained by
 
 <refsect1><title>SECURITY</title>
 <para>
-<command/rarpd/ requires <constant/CAP_NET_RAWIO/ capability
+<command/rarpd/ requires <constant/CAP_NET_RAW/ capability
 to listen and send RARP and ARP packets. It also needs <constant/CAP_NET_ADMIN/
 to give to kernel hint for ARP resolution; this is not strictly required,
 but some (most of, to be more exact) clients are so badly broken that

@@ -62,6 +62,9 @@ char copyright[] =
 
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
+#ifndef WITHOUT_IFADDRS
+#include <ifaddrs.h>
+#endif
 
 #ifndef ICMP_FILTER
 #define ICMP_FILTER	1
@@ -120,17 +123,26 @@ main(int argc, char **argv)
 	int ch, hold, packlen;
 	int socket_errno;
 	u_char *packet;
-	char *target, hnamebuf[MAX_HOSTNAMELEN];
+	char *target;
+#ifdef USE_IDN
+	char *hnamebuf = NULL;
+#else
+	char hnamebuf[MAX_HOSTNAMELEN];
+#endif
 	char rspace[3 + 4 * NROUTES + 1];	/* record route space */
+
+	limit_capabilities();
+
+#ifdef USE_IDN
+	setlocale(LC_ALL, "");
+#endif
+
+	enable_capability_raw();
 
 	icmp_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 	socket_errno = errno;
 
-	uid = getuid();
-	if (setuid(uid)) {
-		perror("ping: setuid");
-		exit(-1);
-	}
+	disable_capability_raw();
 
 	source.sin_family = AF_INET;
 
@@ -212,7 +224,7 @@ main(int argc, char **argv)
 			}
 			break;
 		case 'V':
-			printf("ping utility, iputils-ss%s\n", SNAPSHOT);
+			printf("ping utility, iputils-%s\n", SNAPSHOT);
 			exit(0);
 		COMMON_OPTIONS
 			common_options(ch);
@@ -250,14 +262,44 @@ main(int argc, char **argv)
 			if (argc == 1)
 				options |= F_NUMERIC;
 		} else {
-			hp = gethostbyname(target);
+			char *idn;
+#ifdef USE_IDN
+			int rc;
+
+			if (hnamebuf) {
+				free(hnamebuf);
+				hnamebuf = NULL;
+			}
+
+			rc = idna_to_ascii_lz(target, &idn, 0);
+			if (rc != IDNA_SUCCESS) {
+				fprintf(stderr, "ping: IDN encoding failed: %s\n", idna_strerror(rc));
+				exit(2);
+			}
+#else
+			idn = target;
+#endif
+			hp = gethostbyname(idn);
 			if (!hp) {
 				fprintf(stderr, "ping: unknown host %s\n", target);
 				exit(2);
 			}
+#ifdef USE_IDN
+			free(idn);
+#endif
 			memcpy(&whereto.sin_addr, hp->h_addr, 4);
+#ifdef USE_IDN
+			if (idna_to_unicode_lzlz(hp->h_name, &hnamebuf, 0) != IDNA_SUCCESS) {
+				hnamebuf = strdup(hp->h_name);
+				if (!hnamebuf) {
+					perror("ping: strdup");
+					exit(-1);
+				}
+			}
+#else
 			strncpy(hnamebuf, hp->h_name, sizeof(hnamebuf) - 1);
 			hnamebuf[sizeof(hnamebuf) - 1] = 0;
+#endif
 			hostname = hnamebuf;
 		}
 		if (argc > 1)
@@ -277,9 +319,16 @@ main(int argc, char **argv)
 		}
 		if (device) {
 			struct ifreq ifr;
+			int rc;
+
 			memset(&ifr, 0, sizeof(ifr));
 			strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
-			if (setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
+
+			enable_capability_raw();
+			rc = setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1);
+			disable_capability_raw();
+
+			if (rc == -1) {
 				if (IN_MULTICAST(ntohl(dst.sin_addr.s_addr))) {
 					struct ip_mreqn imr;
 					if (ioctl(probe_fd, SIOCGIFINDEX, &ifr) < 0) {
@@ -292,6 +341,9 @@ main(int argc, char **argv)
 						perror("ping: IP_MULTICAST_IF");
 						exit(2);
 					}
+				} else {
+					perror("ping: SO_BINDTODEVICE");
+					exit(2);
 				}
 			}
 		}
@@ -330,6 +382,30 @@ main(int argc, char **argv)
 			exit(2);
 		}
 		source.sin_port = 0;
+
+#ifndef WITHOUT_IFADDRS
+		if (device) {
+			struct ifaddrs *ifa0, *ifa;
+			int ret;
+
+			ret = getifaddrs(&ifa0);
+			if (ret) {
+				fprintf(stderr, "gatifaddrs() failed.\n");
+				exit(2);
+			}
+			for (ifa = ifa0; ifa; ifa = ifa->ifa_next) {
+				if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET)
+					continue;
+				if (!strncmp(ifa->ifa_name, device, sizeof(device) - 1) &&
+				    !memcmp(&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr,
+					    &source.sin_addr, sizeof(source.sin_addr)))
+					break;
+			}
+			freeifaddrs(ifa0);
+			if (!ifa)
+				fprintf(stderr, "ping: Warning: source address might be selected on device other than %s.\n", device);
+		}
+#endif
 		close(probe_fd);
 	} while (0);
 
@@ -558,7 +634,7 @@ int receive_error_msg()
 		if (options & F_QUIET)
 			goto out;
 		if (options & F_FLOOD)
-			write(STDOUT_FILENO, "E", 1);
+			write_stdout("E", 1);
 		else if (e->ee_errno != EMSGSIZE)
 			fprintf(stderr, "ping: local error: %s\n", strerror(e->ee_errno));
 		else
@@ -594,7 +670,7 @@ int receive_error_msg()
 		if (options & F_QUIET)
 			goto out;
 		if (options & F_FLOOD) {
-			write(STDOUT_FILENO, "\bE", 2);
+			write_stdout("\bE", 2);
 		} else {
 			print_timestamp();
 			printf("From %s icmp_seq=%u ", pr_addr(sin->sin_addr.s_addr), ntohs(icmph.un.echo.sequence));
@@ -629,16 +705,13 @@ int send_probe()
 	icp->un.echo.sequence = htons(ntransmitted+1);
 	icp->un.echo.id = ident;			/* ID */
 
-	CLR((ntransmitted+1) % mx_dup_ck);
+	rcvd_clear(ntransmitted+1);
 
 	if (timing) {
 		if (options&F_LATENCY) {
-			static volatile int fake_fucked_egcs = sizeof(struct timeval);
 			struct timeval tmp_tv;
 			gettimeofday(&tmp_tv, NULL);
-			/* egcs is crap or glibc is crap, but memcpy
-			   does not copy anything, if len is constant! */
-			memcpy(icp+1, &tmp_tv, fake_fucked_egcs);
+			memcpy(icp+1, &tmp_tv, sizeof(tmp_tv));
 		} else {
 			memset(icp+1, 0, sizeof(struct timeval));
 		}
@@ -650,13 +723,10 @@ int send_probe()
 	icp->checksum = in_cksum((u_short *)icp, cc, 0);
 
 	if (timing && !(options&F_LATENCY)) {
-		static volatile int fake_fucked_egcs = sizeof(struct timeval);
 		struct timeval tmp_tv;
 		gettimeofday(&tmp_tv, NULL);
-		/* egcs is crap or glibc is crap, but memcpy
-		   does not copy anything, if len is constant! */
-		memcpy(icp+1, &tmp_tv, fake_fucked_egcs);
-		icp->checksum = in_cksum((u_short *)(icp+1), fake_fucked_egcs, ~icp->checksum);
+		memcpy(icp+1, &tmp_tv, sizeof(tmp_tv));
+		icp->checksum = in_cksum((u_short *)&tmp_tv, sizeof(tmp_tv), ~icp->checksum);
 	}
 
 	do {
@@ -683,7 +753,7 @@ int send_probe()
 void pr_echo_reply(__u8 *_icp, int len)
 {
 	struct icmphdr *icp = (struct icmphdr *)_icp;
-	printf(" icmp_req=%u", ntohs(icp->un.echo.sequence));
+	printf(" icmp_seq=%u", ntohs(icp->un.echo.sequence));
 }
 
 int
@@ -767,7 +837,7 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 					return !error_pkt;
 				if (options & F_FLOOD) {
 					if (error_pkt)
-						write(STDOUT_FILENO, "\bE", 2);
+						write_stdout("\bE", 2);
 					return !error_pkt;
 				}
 				print_timestamp();
@@ -785,9 +855,9 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 		}
 		if ((options & F_FLOOD) && !(options & (F_VERBOSE|F_QUIET))) {
 			if (!csfailed)
-				write(STDOUT_FILENO, "!E", 2);
+				write_stdout("!E", 2);
 			else
-				write(STDOUT_FILENO, "!EC", 3);
+				write_stdout("!EC", 3);
 			return 0;
 		}
 		if (!(options & F_VERBOSE) || uid)
@@ -820,6 +890,15 @@ parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 	return 0;
 }
 
+
+#if BYTE_ORDER == LITTLE_ENDIAN
+# define ODDBYTE(v)	(v)
+#elif BYTE_ORDER == BIG_ENDIAN
+# define ODDBYTE(v)	((u_short)(v) << 8)
+#else
+# define ODDBYTE(v)	htons((u_short)(v) << 8)
+#endif
+
 u_short
 in_cksum(const u_short *addr, register int len, u_short csum)
 {
@@ -841,7 +920,7 @@ in_cksum(const u_short *addr, register int len, u_short csum)
 
 	/* mop up an odd byte, if necessary */
 	if (nleft == 1)
-		sum += htons(*(u_char *)w << 8);
+		sum += ODDBYTE(*(u_char *)w); /* le16toh() may be unavailable on old systems */
 
 	/*
 	 * add back carry outs from top 16 bits to low 16 bits
@@ -883,8 +962,35 @@ void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp)
 		case ICMP_SR_FAILED:
 			printf("Source Route Failed\n");
 			break;
+		case ICMP_NET_UNKNOWN:
+			printf("Destination Net Unknown\n");
+			break;
+		case ICMP_HOST_UNKNOWN:
+			printf("Destination Host Unknown\n");
+			break;
+		case ICMP_HOST_ISOLATED:
+			printf("Source Host Isolated\n");
+			break;
+		case ICMP_NET_ANO:
+			printf("Destination Net Prohibited\n");
+			break;
+		case ICMP_HOST_ANO:
+			printf("Destination Host Prohibited\n");
+			break;
+		case ICMP_NET_UNR_TOS:
+			printf("Destination Net Unreachable for Type of Service\n");
+			break;
+		case ICMP_HOST_UNR_TOS:
+			printf("Destination Host Unreachable for Type of Service\n");
+			break;
 		case ICMP_PKT_FILTERED:
 			printf("Packet filtered\n");
+			break;
+		case ICMP_PREC_VIOLATION:
+			printf("Precedence Violation\n");
+			break;
+		case ICMP_PREC_CUTOFF:
+			printf("Precedence Cutoff\n");
 			break;
 		default:
 			printf("Dest Unreachable, Bad Code: %d\n", code);
@@ -1034,7 +1140,7 @@ void pr_options(unsigned char * cp, int hlen)
 			if (i <= 0)
 				break;
 			if (i == old_rrlen
-			    && !strncmp((char *)cp, old_rr, i)
+			    && !memcmp(cp, old_rr, i)
 			    && !(options & F_FLOOD)) {
 				printf("\t(same route)");
 				i = ((i + 3) / 4) * 4;
@@ -1160,12 +1266,28 @@ pr_addr(__u32 addr)
 	struct hostent *hp;
 	static char buf[4096];
 
-	if ((options & F_NUMERIC) ||
+	in_pr_addr = !setjmp(pr_addr_jmp);
+
+	if (exiting || (options & F_NUMERIC) ||
 	    !(hp = gethostbyaddr((char *)&addr, 4, AF_INET)))
 		sprintf(buf, "%s", inet_ntoa(*(struct in_addr *)&addr));
-	else
-		snprintf(buf, sizeof(buf), "%s (%s)", hp->h_name,
+	else {
+		char *s;
+#if USE_IDN
+		if (idna_to_unicode_lzlz(hp->h_name, &s, 0) != IDNA_SUCCESS)
+			s = NULL;
+#else
+		s = NULL;
+#endif
+		snprintf(buf, sizeof(buf), "%s (%s)", s ? s : hp->h_name,
 			 inet_ntoa(*(struct in_addr *)&addr));
+#if USE_IDN
+		free(s);
+#endif
+	}
+
+	in_pr_addr = 0;
+
 	return(buf);
 }
 
@@ -1228,13 +1350,34 @@ void install_filter(void)
 		perror("WARNING: failed to install socket filter\n");
 }
 
+#define USAGE_NEWLINE	"\n           "
 
 void usage(void)
 {
 	fprintf(stderr,
-"Usage: ping [-LRUbdfnqrvVaAD] [-c count] [-i interval] [-w deadline]\n"
-"            [-p pattern] [-s packetsize] [-t ttl] [-I interface]\n"
-"            [-M pmtudisc-hint] [-m mark] [-S sndbuf]\n"
-"            [-T tstamp-options] [-Q tos] [hop1 ...] destination\n");
+		"Usage: ping"
+		" [-"
+			"aAbBdDfhLnOqrRUvV"
+		"]"
+		" [-c count]"
+		" [-i interval]"
+		" [-I interface]"
+		USAGE_NEWLINE
+		" [-m mark]"
+		" [-M pmtudisc_option]"
+		" [-l preload]"
+		" [-p pattern]"
+		" [-Q tos]"
+		USAGE_NEWLINE
+		" [-s packetsize]"
+		" [-S sndbuf]"
+		" [-t ttl]"
+		" [-T timestamp_option]"
+		USAGE_NEWLINE
+		" [-w deadline]"
+		" [-W timeout]"
+		" [hop1 ...] destination"
+		"\n"
+	);
 	exit(2);
 }

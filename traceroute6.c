@@ -249,6 +249,14 @@ char copyright[] =
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
 #include <linux/types.h>
+#ifdef CAPABILITIES
+#include <sys/capability.h>
+#endif
+
+#ifdef USE_IDN
+#include <idna.h>
+#include <locale.h>
+#endif
 
 #include <arpa/inet.h>
 
@@ -342,6 +350,20 @@ int main(int argc, char *argv[])
 		perror("traceroute6: setuid");
 		exit(-1);
 	}
+#ifdef CAPABILITIES
+	{
+		cap_t caps = cap_init();
+		if (cap_set_proc(caps)) {
+			perror("traceroute6: cap_set_proc");
+			exit(-1);
+		}
+		cap_free(caps);
+	}
+#endif
+
+#ifdef USE_IDN
+	setlocale(LC_ALL, "");
+#endif
 
 	on = 1;
 	seq = tos = 0;
@@ -406,7 +428,7 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case 'V':
-			printf("traceroute6 utility, iputils-ss%s\n", SNAPSHOT);
+			printf("traceroute6 utility, iputils-%s\n", SNAPSHOT);
 			exit(0);
 		default:
 			usage();
@@ -428,7 +450,12 @@ int main(int argc, char *argv[])
 	if (inet_pton(AF_INET6, *argv, &to->sin6_addr) > 0) {
 		hostname = *argv;
 	} else {
-		hp = gethostbyname2(*argv, AF_INET6);
+		char *idn = NULL;
+#ifdef USE_IDN
+		if (idna_to_ascii_lz(*argv, &idn, 0) != IDNA_SUCCESS)
+			idn = NULL;
+#endif
+		hp = gethostbyname2(idn ? idn : *argv, AF_INET6);
 		if (hp) {
 			memmove((caddr_t)&to->sin6_addr, hp->h_addr, sizeof(to->sin6_addr));
 			hostname = (char *)hp->h_name;
@@ -880,14 +907,21 @@ void print(unsigned char *buf, int cc, struct sockaddr_in6 *from)
 	{
 		const char *hostname;
 		struct hostent *hp;
+		char *s = NULL;
 
 		hostname = inet_ntop(AF_INET6, &from->sin6_addr, pa, sizeof(pa));
 
 		if ((hp = gethostbyaddr((char *)&from->sin6_addr,
-					sizeof(from->sin6_addr), AF_INET6)))
-			hostname = hp->h_name;
+					sizeof(from->sin6_addr), AF_INET6))) {
+#ifdef USE_IDN
+			if (idna_to_unicode_lzlz(hp->h_name, &s, 0) != IDNA_SUCCESS)
+				s = NULL;
+#endif
+		}
 
-		Printf(" %s (%s)", hostname, pa);
+		Printf(" %s (%s)", hp ? (s ? s : hp->h_name) : hostname, pa);
+
+		free(s);
 	}
 }
 

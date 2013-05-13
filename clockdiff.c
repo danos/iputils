@@ -20,6 +20,9 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <linux/types.h>
+#ifdef CAPABILITIES
+#include <sys/capability.h>
+#endif
 
 void usage(void) __attribute__((noreturn));
 
@@ -95,7 +98,7 @@ int in_cksum(u_short *addr, int len)
 
 
 int interactive = 0;
-int id;
+uint16_t id;
 int sock;
 int sock_raw;
 struct sockaddr_in server;
@@ -126,7 +129,7 @@ measure(struct sockaddr_in * addr)
 	int msgcount;
 	int cc, count;
 	fd_set ready;
-	long sendtime, recvtime, histime,  histime1;
+	long sendtime, recvtime, histime;
 	long min1, min2, diff;
 	long delta1, delta2;
 	struct timeval tv1, tout;
@@ -240,7 +243,6 @@ empty:
 			  rtt_sigma = (rtt_sigma *3 + abs(diff-rtt))/4;
 			  msgcount++;
 			  histime = ntohl(((__u32*)(icp+1))[1]);
-			  histime1 = ntohl(((__u32*)(icp+1))[2]);
 		/*
 		 * a hosts using a time format different from
 		 * ms. since midnight UT (as per RFC792) should
@@ -530,6 +532,20 @@ usage() {
   exit(1);
 }
 
+void drop_rights(void) {
+#ifdef CAPABILITIES
+	cap_t caps = cap_init();
+	if (cap_set_proc(caps)) {
+		perror("clockdiff: cap_set_proc");
+		exit(-1);
+	}
+	cap_free(caps);
+#endif
+	if (setuid(getuid())) {
+		perror("clockdiff: setuid");
+		exit(-1);
+	}
+}
 
 int
 main(int argc, char *argv[])
@@ -538,22 +554,20 @@ main(int argc, char *argv[])
 	struct hostent * hp;
 	char hostname[MAX_HOSTNAMELEN];
 	int s_errno = 0;
+	int n_errno = 0;
 
 	if (argc < 2) {
-		if (setuid(getuid())) {
-			perror("clockdiff: setuid");
-			exit(-1);
-		}
+		drop_rights();
 		usage();
 	}
 
 	sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 	s_errno = errno;
 
-	if (setuid(getuid())) {
-		perror("clockdiff: setuid");
-		exit(-1);
-	}
+	errno = 0;
+	if (nice(-16) == -1)
+		n_errno = errno;
+	drop_rights();
 
 	if (argc == 3) {
 		if (strcmp(argv[1], "-o") == 0) {
@@ -570,6 +584,12 @@ main(int argc, char *argv[])
 	if (sock_raw < 0)  {
 		errno = s_errno;
 		perror("clockdiff: socket");
+		exit(1);
+	}
+
+	if (n_errno < 0) {
+		errno = n_errno;
+		perror("clockdiff: nice");
 		exit(1);
 	}
 
@@ -628,8 +648,6 @@ main(int argc, char *argv[])
 			ip_opt_len = 0;
 		}
 	}
-
-	nice(-16);
 
 	if ((measure_status = (ip_opt_len ? measure_opt : measure)(&server)) < 0) {
 		if (errno)

@@ -23,6 +23,10 @@
 #include <sys/time.h>
 #include <sys/uio.h>
 #include <arpa/inet.h>
+#ifdef USE_IDN
+#include <idna.h>
+#include <locale.h>
+#endif
 
 #ifndef IP_PMTUDISC_PROBE
 #define IP_PMTUDISC_PROBE	3
@@ -42,6 +46,7 @@ __u16 base_port;
 
 const int overhead = 28;
 int mtu = 65535;
+void *pktbuf;
 int hops_to = -1;
 int hops_from = -1;
 int no_resolve = 0;
@@ -68,7 +73,7 @@ void data_wait(int fd)
 
 void print_host(const char *a, const char *b, int both)
 {
-	size_t plen = 0;
+	int plen = 0;
 	printf("%s", a);
 	plen = strlen(a);
 	if (both) {
@@ -145,7 +150,7 @@ restart:
 			if (cmsg->cmsg_type == IP_RECVERR) {
 				e = (struct sock_extended_err *) CMSG_DATA(cmsg);
 			} else if (cmsg->cmsg_type == IP_TTL) {
-				rethops = *(int*)CMSG_DATA(cmsg);
+				memcpy(&rethops, CMSG_DATA(cmsg), sizeof(rethops));
 			} else {
 				printf("cmsg:%d\n ", cmsg->cmsg_type);
 			}
@@ -161,6 +166,7 @@ restart:
 		char abuf[128];
 		struct sockaddr_in *sin = (struct sockaddr_in*)(e+1);
 		struct hostent *h = NULL;
+		char *idn = NULL;
 
 		inet_ntop(AF_INET, &sin->sin_addr, abuf, sizeof(abuf));
 
@@ -174,10 +180,18 @@ restart:
 			h = gethostbyaddr((char *) &sin->sin_addr, sizeof(sin->sin_addr), AF_INET);
 		}
 
+#ifdef USE_IDN
+		if (h && idna_to_unicode_lzlz(h->h_name, &idn, 0) != IDNA_SUCCESS)
+			idn = NULL;
+#endif
 		if (no_resolve)
-			print_host(abuf, h ? h->h_name : abuf, show_both);
+			print_host(abuf, h ? (idn ? idn : h->h_name) : abuf, show_both);
 		else
-			print_host(h ? h->h_name : abuf, abuf, show_both);
+			print_host(h ? (idn ? idn : h->h_name) : abuf, abuf, show_both);
+
+#ifdef USE_IDN
+		free(idn);
+#endif
 	}
 
 	if (rettv) {
@@ -243,11 +257,9 @@ restart:
 int probe_ttl(int fd, int ttl)
 {
 	int i;
-	char sndbuf[mtu];
-	struct probehdr *hdr = (struct probehdr*)sndbuf;
+	struct probehdr *hdr = pktbuf;
 
-	memset(sndbuf,0,mtu);
-
+	memset(pktbuf, 0, mtu);
 restart:
 	for (i=0; i<10; i++) {
 		int res;
@@ -257,7 +269,7 @@ restart:
 		gettimeofday(&hdr->tv, NULL);
 		his[hisptr].hops = ttl;
 		his[hisptr].sendtime = hdr->tv;
-		if (sendto(fd, sndbuf, mtu-overhead, 0, (struct sockaddr*)&target, sizeof(target)) > 0)
+		if (sendto(fd, pktbuf, mtu-overhead, 0, (struct sockaddr*)&target, sizeof(target)) > 0)
 			break;
 		res = recverr(fd, ttl);
 		his[hisptr].hops = 0;
@@ -270,7 +282,7 @@ restart:
 
 	if (i<10) {
 		data_wait(fd);
-		if (recv(fd, sndbuf, sizeof(sndbuf), MSG_DONTWAIT) > 0) {
+		if (recv(fd, pktbuf, mtu, MSG_DONTWAIT) > 0) {
 			printf("%2d?: reply received 8)\n", ttl);
 			return 0;
 		}
@@ -285,7 +297,7 @@ static void usage(void) __attribute((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: tracepath [-n] [-b] [-l <len>] <destination>[/<port>]\n");
+	fprintf(stderr, "Usage: tracepath [-n] [-b] [-l <len>] [-p port] <destination>\n");
 	exit(-1);
 }
 
@@ -298,8 +310,12 @@ main(int argc, char **argv)
 	int ttl;
 	char *p;
 	int ch;
+#ifdef USE_IDN
+	int rc;
+	setlocale(LC_ALL, "");
+#endif
 
-	while ((ch = getopt(argc, argv, "nbh?l:")) != EOF) {
+	while ((ch = getopt(argc, argv, "nbh?l:p:")) != EOF) {
 		switch(ch) {
 		case 'n':
 			no_resolve = 1;
@@ -309,9 +325,13 @@ main(int argc, char **argv)
 			break;
 		case 'l':
 			if ((mtu = atoi(optarg)) <= overhead) {
-				fprintf(stderr, "Error: length must be >= %d\n", overhead);
+				fprintf(stderr, "Error: pktlen must be > %d and <= %d.\n",
+					overhead, INT_MAX);
 				exit(1);
 			}
+			break;
+		case 'p':
+			base_port = atoi(optarg);
 			break;
 		default:
 			usage();
@@ -324,7 +344,6 @@ main(int argc, char **argv)
 	if (argc != 1)
 		usage();
 
-
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (fd < 0) {
 		perror("socket");
@@ -332,17 +351,35 @@ main(int argc, char **argv)
 	}
 	target.sin_family = AF_INET;
 
-	p = strchr(argv[0], '/');
-	if (p) {
-		*p = 0;
-		base_port = atoi(p+1);
-	} else
-		base_port = 44444;
-	he = gethostbyname(argv[0]);
+	/* Backward compatiblity */
+	if (!base_port) {
+		p = strchr(argv[0], '/');
+		if (p) {
+			*p = 0;
+			base_port = atoi(p+1);
+		} else
+			base_port = 44444;
+	}
+
+	p = argv[0];
+#ifdef USE_IDN
+	rc = idna_to_ascii_lz(argv[0], &p, 0);
+	if (rc != IDNA_SUCCESS) {
+		fprintf(stderr, "IDNA encoding failed: %s\n", idna_strerror(rc));
+		exit(2);
+	}
+#endif
+
+	he = gethostbyname(p);
 	if (he == NULL) {
 		herror("gethostbyname");
 		exit(1);
 	}
+
+#ifdef USE_IDN
+	free(p);
+#endif
+
 	memcpy(&target.sin_addr, he->h_addr, 4);
 
 	on = IP_PMTUDISC_PROBE;
@@ -359,6 +396,12 @@ main(int argc, char **argv)
 	}
 	if (setsockopt(fd, SOL_IP, IP_RECVTTL, &on, sizeof(on))) {
 		perror("IP_RECVTTL");
+		exit(1);
+	}
+
+	pktbuf = malloc(mtu);
+	if (!pktbuf) {
+		perror("malloc");
 		exit(1);
 	}
 
