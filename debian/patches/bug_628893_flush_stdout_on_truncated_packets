@@ -1,8 +1,8 @@
 Index: iputils/ping.c
 ===================================================================
---- iputils.orig/ping.c	2012-08-19 21:50:43.000000000 -0700
-+++ iputils/ping.c	2012-08-19 21:59:42.000000000 -0700
-@@ -717,8 +717,10 @@
+--- iputils.orig/ping.c	2013-05-14 09:30:55.344116453 -0700
++++ iputils/ping.c	2013-05-14 09:31:55.276413640 -0700
+@@ -787,8 +787,10 @@
  		if (gather_statistics((__u8*)icp, sizeof(*icp), cc,
  				      ntohs(icp->un.echo.sequence),
  				      ip->ttl, 0, tv, pr_addr(from->sin_addr.s_addr),
@@ -16,9 +16,9 @@ Index: iputils/ping.c
  		 * Also this branch processes icmp errors, when IP_RECVERR
 Index: iputils/ping6.c
 ===================================================================
---- iputils.orig/ping6.c	2012-08-19 21:50:43.000000000 -0700
-+++ iputils/ping6.c	2012-08-19 22:00:42.000000000 -0700
-@@ -1351,8 +1351,10 @@
+--- iputils.orig/ping6.c	2013-05-14 09:30:55.344116453 -0700
++++ iputils/ping6.c	2013-05-14 09:31:55.276413640 -0700
+@@ -1607,8 +1607,10 @@
  		if (gather_statistics((__u8*)icmph, sizeof(*icmph), cc,
  				      ntohs(icmph->icmp6_seq),
  				      hops, 0, tv, pr_addr(&from->sin6_addr),
@@ -29,4 +29,4 @@ Index: iputils/ping6.c
 +		}
  	} else if (icmph->icmp6_type == ICMPV6_NI_REPLY) {
  		struct ni_hdr *nih = (struct ni_hdr *)icmph;
- 		__u16 seq = ntohs(*(__u16 *)nih->ni_nonce);
+ 		int seq = niquery_check_nonce(nih->ni_nonce);
