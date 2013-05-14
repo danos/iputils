@@ -5,6 +5,7 @@ iputils (3:20121221-1) UNRELEASED; urgency=low
   * Replace libssl-dev with gnutls-dev in build-deps
   * Remove obsolete debian/patches/fix-dead-host-ping-stats.diff
   * Remove obsolete debian/patches/add-icmp-return-codes.diff
+  * Remove obsolete patch cleanup-docbook-formatting.diff
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 12 May 2013 21:46:22 -0700
 
