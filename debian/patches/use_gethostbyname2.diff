@@ -1,3 +1,4 @@
+See http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=305062
 Index: iputils/ping.c
 ===================================================================
 --- iputils.orig/ping.c	2013-05-14 09:03:28.327949337 -0700
