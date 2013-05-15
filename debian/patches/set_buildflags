@@ -1,31 +1,35 @@
 Index: iputils/Makefile
 ===================================================================
---- iputils.orig/Makefile	2012-08-29 09:06:16.000000000 -0700
-+++ iputils/Makefile	2012-08-29 09:08:33.000000000 -0700
-@@ -13,8 +13,8 @@
- CC=gcc
+--- iputils.orig/Makefile	2013-05-14 22:30:35.000000000 -0700
++++ iputils/Makefile	2013-05-14 22:44:17.880278080 -0700
+@@ -49,10 +49,11 @@
+ # -------------------------------------
  # What a pity, all new gccs are buggy and -Werror does not work. Sigh.
- #CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall -g -Werror
--CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall -g
--CFLAGS=$(CCOPT) $(GLIBCFIX) $(DEFINES) 
-+CCOPT=-D_GNU_SOURCE -Wstrict-prototypes -Wall
+ # CCOPT=-fno-strict-aliasing -Wstrict-prototypes -Wall -Werror -g
+-CCOPT=-fno-strict-aliasing -Wstrict-prototypes -Wall -g
++CCOPT=-Wstrict-prototypes -Wall
+ CCOPTOPT=-O3
+ GLIBCFIX=-D_GNU_SOURCE
+ DEFINES=
 +CFLAGS=$(DEBIAN_CFLAGS) $(CCOPT) $(GLIBCFIX) $(DEFINES)
+ LDLIB=
  
- IPV4_TARGETS=tracepath ping arping clockdiff
+ FUNC_LIB = $(if $(filter static,$(1)),$(LDFLAG_STATIC) $(2) $(LDFLAG_DYNAMIC),$(2))
+@@ -110,7 +111,7 @@
  IPV6_TARGETS=tracepath6 traceroute6 ping6
-@@ -27,9 +27,13 @@
+ TARGETS=$(IPV4_TARGETS) $(IPV6_TARGETS)
  
+-CFLAGS=$(CCOPTOPT) $(CCOPT) $(GLIBCFIX) $(DEFINES)
++CFLAGS=$(DEBIAN_CFLAGS) $(CCOPTOPT) $(CCOPT) $(GLIBCFIX) $(DEFINES)
+ LDLIBS=$(LDLIB) $(ADDLIB)
  
- tftpd: tftpd.o tftpsubs.o
--arping: arping.o -lsysfs
-+	$(CC) $(LDFLAGS) tftpd.o tftpsubs.o -o tftpd
-+arping: arping.o
-+	$(CC) $(LDFLAGS) arping.o -o arping -lsysfs
- ping: ping.o ping_common.o
--ping6: ping6.o ping_common.o -lresolv -lcrypto
-+	$(CC) $(LDFLAGS) ping.o ping_common.o -o ping
-+ping6: ping6.o ping_common.o
-+	$(CC) $(LDFLAGS) ping6.o ping_common.o -lresolv -lcrypto -o ping6
- ping.o ping6.o ping_common.o: ping_common.h
- tftpd.o tftpsubs.o: tftp.h
+ UNAME_N:=$(shell uname -n)
+@@ -130,7 +131,7 @@
+ %.o: %.c
+ 	$(COMPILE.c) $< $(DEF_$(patsubst %.o,%,$@)) -o $@
+ $(TARGETS): %: %.o
+-	$(LINK.o) $^ $(LIB_$@) $(LDLIBS) -o $@
++	$(LINK.o) $^ $(DEBIAN_LDFLAGS) $(LIB_$@) $(LDLIBS) -o $@
  
+ # -------------------------------------
+ # arping
