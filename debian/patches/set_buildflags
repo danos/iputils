@@ -1,7 +1,7 @@
 Index: iputils/Makefile
 ===================================================================
---- iputils.orig/Makefile	2013-05-14 22:30:35.000000000 -0700
-+++ iputils/Makefile	2013-05-14 22:44:17.880278080 -0700
+--- iputils.orig/Makefile	2013-05-14 23:50:41.032029459 -0700
++++ iputils/Makefile	2013-05-14 23:51:34.188293041 -0700
 @@ -49,10 +49,11 @@
  # -------------------------------------
  # What a pity, all new gccs are buggy and -Werror does not work. Sigh.
@@ -33,3 +33,12 @@ Index: iputils/Makefile
  
  # -------------------------------------
  # arping
+@@ -149,7 +150,7 @@
+ DEF_ping_common = $(DEF_CAP) $(DEF_IDN)
+ DEF_ping  = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS)
+ LIB_ping  = $(LIB_CAP) $(LIB_IDN)
+-DEF_ping6 = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS) $(DEF_ENABLE_PING6_RTHDR)
++DEF_ping6 = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS) $(DEF_ENABLE_PING6_RTHDR) $(DEF_CRYPTO)
+ LIB_ping6 = $(LIB_CAP) $(LIB_IDN) $(LIB_RESOLV) $(LIB_CRYPTO)
+ 
+ ping: ping_common.o
