@@ -1,14 +1,14 @@
-iputils (3:20121221-1) UNRELEASED; urgency=low
+iputils (3:20121221-1) unstable; urgency=low
 
   * New upstream version
-  * Replace libsysfs-dev with libcap-dev in build-deps
+  * Replace libsysfs-dev with libcap-dev in build-deps (Closes: 627650, 609853)
   * Replace libssl-dev with gnutls-dev in build-deps
   * Remove obsolete debian/patches/fix-dead-host-ping-stats.diff
   * Remove obsolete debian/patches/add-icmp-return-codes.diff
   * Remove obsolete patch cleanup-docbook-formatting.diff
   * Remove obsolete patch fix_rfc4620_nodeinfo_queries
 
- -- Noah Meyerhans <noahm@debian.org>  Sun, 12 May 2013 21:46:22 -0700
+ -- Noah Meyerhans <noahm@debian.org>  Tue, 14 May 2013 23:59:05 -0700
 
 iputils (3:20101006-3) unstable; urgency=low
 
