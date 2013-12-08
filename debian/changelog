@@ -1,6 +1,8 @@
 iputils (3:20121221-2) UNRELEASED; urgency=low
 
   * Silence erroneous "kernel is not very fresh" warnings. (Closes: 709052)
+  * Cherry pick revision 608419a7 from upstream for traceroute 
+    max-hops options
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 08 Dec 2013 13:45:56 -0800
 
