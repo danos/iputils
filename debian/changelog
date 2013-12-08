@@ -1,3 +1,9 @@
+iputils (3:20121221-2) UNRELEASED; urgency=low
+
+  * Silence erroneous "kernel is not very fresh" warnings. (Closes: 709052)
+
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 08 Dec 2013 13:45:56 -0800
+
 iputils (3:20121221-1) unstable; urgency=low
 
   * New upstream version
