@@ -1,0 +1,45 @@
+Cherry picked from upstream revision cec404067
+Index: iputils/tracepath.c
+===================================================================
+--- iputils.orig/tracepath.c	2013-12-08 13:51:38.928726279 -0800
++++ iputils/tracepath.c	2013-12-08 13:55:18.121813195 -0800
+@@ -77,13 +77,10 @@
+ 
+ void print_host(const char *a, const char *b, int both)
+ {
+-	int plen = 0;
+-	printf("%s", a);
+-	plen = strlen(a);
+-	if (both) {
+-		printf(" (%s)", b);
+-		plen += strlen(b) + 3;
+-	}
++	int plen;
++	plen = printf("%s", a);
++	if (both)
++		plen += printf(" (%s)", b);
+ 	if (plen >= HOST_COLUMN_SIZE)
+ 		plen = HOST_COLUMN_SIZE - 1;
+ 	printf("%*s", HOST_COLUMN_SIZE - plen, "");
+Index: iputils/tracepath6.c
+===================================================================
+--- iputils.orig/tracepath6.c	2013-12-08 13:51:38.928726279 -0800
++++ iputils/tracepath6.c	2013-12-08 13:55:18.121813195 -0800
+@@ -90,13 +90,10 @@
+ 
+ void print_host(const char *a, const char *b, int both)
+ {
+-	int plen = 0;
+-	printf("%s", a);
+-	plen = strlen(a);
+-	if (both) {
+-		printf(" (%s)", b);
+-		plen += strlen(b) + 3;
+-	}
++	int plen;
++	plen = printf("%s", a);
++	if (both)
++		plen += printf(" (%s)", b);
+ 	if (plen >= HOST_COLUMN_SIZE)
+ 		plen = HOST_COLUMN_SIZE - 1;
+ 	printf("%*s", HOST_COLUMN_SIZE - plen, "");
