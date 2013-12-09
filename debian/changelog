@@ -1,4 +1,4 @@
-iputils (3:20121221-3) UNRELEASED; urgency=low
+iputils (3:20121221-3) unstable; urgency=low
 
   * Add build-depends on libgnutls-openssl-dev (Closes: 731561)
   * Fix arping and ping postinst scripts to better handle cases
@@ -6,7 +6,7 @@ iputils (3:20121221-3) UNRELEASED; urgency=low
   * Update debian/copyright to reflect the removal of the advertising
     clause from the UC Berkeley copyright statements. (Closes: 725470)
 
- --
+ -- Noah Meyerhans <noahm@debian.org>  Mon, 09 Dec 2013 08:14:40 -0800
 
 iputils (3:20121221-2) unstable; urgency=low
 
