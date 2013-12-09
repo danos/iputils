@@ -3,6 +3,8 @@ iputils (3:20121221-3) UNRELEASED; urgency=low
   * Add build-depends on libgnutls-openssl-dev (Closes: 731561)
   * Fix arping and ping postinst scripts to better handle cases
     where capabilities aren't supported. (Closes: 731764)
+  * Update debian/copyright to reflect the removal of the advertising
+    clause from the UC Berkeley copyright statements. (Closes: 725470)
 
  --
 
