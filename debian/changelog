@@ -1,4 +1,4 @@
-iputils (3:20121221-2) UNRELEASED; urgency=low
+iputils (3:20121221-2) unstable; urgency=low
 
   * Silence erroneous "kernel is not very fresh" warnings. (Closes: 709052)
   * Cherry pick revision 608419a7 from upstream for traceroute 
@@ -9,7 +9,7 @@ iputils (3:20121221-2) UNRELEASED; urgency=low
     ping6 binaries if possible.
   * Bump standards version to 3.9.5.0 (No changes needed.)
 
- --
+ -- Noah Meyerhans <noahm@debian.org>  Sun, 08 Dec 2013 17:47:52 -0800
 
 iputils (3:20121221-1) unstable; urgency=low
 
