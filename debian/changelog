@@ -1,8 +1,10 @@
 iputils (3:20121221-3) UNRELEASED; urgency=low
 
   * Add build-depends on libgnutls-openssl-dev (Closes: 731561)
+  * Fix arping and ping postinst scripts to better handle cases
+    where capabilities aren't supported. (Closes: 731764)
 
- -- Noah Meyerhans <noahm@debian.org>  Mon, 09 Dec 2013 07:46:55 -0800
+ --
 
 iputils (3:20121221-2) unstable; urgency=low
 
@@ -13,7 +15,7 @@ iputils (3:20121221-2) unstable; urgency=low
     minor bugfixes
   * Enable the CAP_NET_RAW capability and strip the setuid bit on ping and
     ping6 binaries if possible.
-  * Bump standards version to 3.9.5.0 (No changes needed.)
+  * Bump standards version to 3.9.4.0 (No changes needed.)
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 08 Dec 2013 17:47:52 -0800
 
