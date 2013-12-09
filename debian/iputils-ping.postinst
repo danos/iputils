@@ -16,6 +16,8 @@ for f in /bin/ping /bin/ping6; do
     fi
 done
 
+#DEBHELPER#
+
 # Local variables:
 # mode: shell-script
 # tab-width: 4

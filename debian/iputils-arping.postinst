@@ -16,6 +16,8 @@ for f in /usr/bin/arping; do
     fi
 done
 
+#DEBHELPER#
+
 # Local variables:
 # mode: shell-script
 # tab-width: 4
