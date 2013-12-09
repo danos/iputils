@@ -7,8 +7,9 @@ iputils (3:20121221-2) UNRELEASED; urgency=low
     minor bugfixes
   * Enable the CAP_NET_RAW capability and strip the setuid bit on ping and
     ping6 binaries if possible.
+  * Bump standards version to 3.9.5.0 (No changes needed.)
 
- -- Noah Meyerhans <noahm@debian.org>  Sun, 08 Dec 2013 13:45:56 -0800
+ --
 
 iputils (3:20121221-1) unstable; urgency=low
 
