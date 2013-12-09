@@ -1,3 +1,9 @@
+iputils (3:20121221-3) UNRELEASED; urgency=low
+
+  * Add build-depends on libgnutls-openssl-dev (Closes: 731561)
+
+ -- Noah Meyerhans <noahm@debian.org>  Mon, 09 Dec 2013 07:46:55 -0800
+
 iputils (3:20121221-2) unstable; urgency=low
 
   * Silence erroneous "kernel is not very fresh" warnings. (Closes: 709052)
