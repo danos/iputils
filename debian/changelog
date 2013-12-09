@@ -5,6 +5,8 @@ iputils (3:20121221-2) UNRELEASED; urgency=low
     max-hops options
   * Cherry pick revision cec404067 from upstream for tracepath, tracepath6 
     minor bugfixes
+  * Enable the CAP_NET_RAW capability and strip the setuid bit on ping and
+    ping6 binaries if possible.
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 08 Dec 2013 13:45:56 -0800
 
