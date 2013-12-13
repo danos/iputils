@@ -1,0 +1,62 @@
+Index: iputils/tracepath.c
+===================================================================
+--- iputils.orig/tracepath.c	2013-12-12 23:27:43.390859508 -0800
++++ iputils/tracepath.c	2013-12-12 23:29:17.087323789 -0800
+@@ -202,6 +202,13 @@
+ 			printf("(This broken router returned corrupted payload) ");
+ 	}
+ 
++	if (rethops<=64)
++		rethops = 65-rethops;
++	else if (rethops<=128)
++		rethops = 129-rethops;
++	else
++		rethops = 256-rethops;
++
+ 	switch (e->ee_errno) {
+ 	case ETIMEDOUT:
+ 		printf("\n");
+@@ -224,12 +231,6 @@
+ 		    e->ee_type == 11 &&
+ 		    e->ee_code == 0) {
+ 			if (rethops>=0) {
+-				if (rethops<=64)
+-					rethops = 65-rethops;
+-				else if (rethops<=128)
+-					rethops = 129-rethops;
+-				else
+-					rethops = 256-rethops;
+ 				if (sndhops>=0 && rethops != sndhops)
+ 					printf("asymm %2d ", rethops);
+ 				else if (sndhops<0 && rethops != ttl)
+Index: iputils/tracepath6.c
+===================================================================
+--- iputils.orig/tracepath6.c	2013-12-12 23:27:43.390859508 -0800
++++ iputils/tracepath6.c	2013-12-12 23:32:15.216208181 -0800
+@@ -261,6 +261,13 @@
+ 			printf("(This broken router returned corrupted payload) ");
+ 	}
+ 
++	if (rethops<=64)
++		rethops = 65-rethops;
++	else if (rethops<=128)
++		rethops = 129-rethops;
++	else
++		rethops = 256-rethops;
++
+ 	switch (e->ee_errno) {
+ 	case ETIMEDOUT:
+ 		printf("\n");
+@@ -286,12 +293,6 @@
+ 		     e->ee_type == 3 &&
+ 		     e->ee_code == 0)) {
+ 			if (rethops>=0) {
+-				if (rethops<=64)
+-					rethops = 65-rethops;
+-				else if (rethops<=128)
+-					rethops = 129-rethops;
+-				else
+-					rethops = 256-rethops;
+ 				if (sndhops>=0 && rethops != sndhops)
+ 					printf("asymm %2d ", rethops);
+ 				else if (sndhops<0 && rethops != ttl)
