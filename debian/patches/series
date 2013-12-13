@@ -8,3 +8,4 @@ set_buildflags
 recverr_works_bug709052.patch
 upstream-max-hops.patch
 upstream-tracepath-printf-cleanup.patch
+bug109709-less-dns.patch

@@ -1,0 +1,38 @@
+Index: iputils/ping.c
+===================================================================
+--- iputils.orig/ping.c	2013-12-12 21:50:00.237785711 -0800
++++ iputils/ping.c	2013-12-12 22:11:24.800155180 -0800
+@@ -1243,7 +1243,10 @@
+ pr_addr(__u32 addr)
+ {
+ 	struct hostent *hp;
+-	static char buf[4096];
++	static char buf[4096] = "";
++
++	if (*buf)
++		return(buf);
+ 
+ 	in_pr_addr = !setjmp(pr_addr_jmp);
+ 
+Index: iputils/ping6.c
+===================================================================
+--- iputils.orig/ping6.c	2013-12-12 21:50:00.189785476 -0800
++++ iputils/ping6.c	2013-12-12 22:12:22.856444368 -0800
+@@ -1794,7 +1794,7 @@
+  */
+ char * pr_addr(struct in6_addr *addr)
+ {
+-	struct hostent *hp = NULL;
++	static struct hostent *hp = NULL;
+ 	static char *s;
+ 
+ #ifdef USE_IDN
+@@ -1803,7 +1803,7 @@
+ 
+ 	in_pr_addr = !setjmp(pr_addr_jmp);
+ 
+-	if (!(exiting || options&F_NUMERIC))
++	if (!hp && !(exiting || options&F_NUMERIC))
+ 		hp = gethostbyaddr((__u8*)addr, sizeof(struct in6_addr), AF_INET6);
+ 
+ 	in_pr_addr = 0;

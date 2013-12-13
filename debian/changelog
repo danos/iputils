@@ -1,3 +1,9 @@
+iputils (3:20121221-4) unstable; urgency=low
+
+  * Cache DNS lookup results. (Closes: 109709)
+
+ --
+
 iputils (3:20121221-3) unstable; urgency=low
 
   * Add build-depends on libgnutls-openssl-dev (Closes: 731561)
