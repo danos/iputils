@@ -1,0 +1,13 @@
+Index: iputils/ping_common.c
+===================================================================
+--- iputils.orig/ping_common.c	2013-12-08 13:41:08.705601168 -0800
++++ iputils/ping_common.c	2013-12-12 23:09:37.081472727 -0800
+@@ -608,7 +608,7 @@
+ 		interval = 0;
+ 
+ 	if (uid && interval < MINUSERINTERVAL) {
+-		fprintf(stderr, "ping: cannot flood; minimal interval, allowed for user, is %dms\n", MINUSERINTERVAL);
++		fprintf(stderr, "ping: cannot flood; minimal interval allowed for user is %dms\n", MINUSERINTERVAL);
+ 		exit(2);
+ 	}
+ 

@@ -3,6 +3,7 @@ iputils (3:20121221-4) unstable; urgency=low
   * Cache DNS lookup results. (Closes: 109709)
   * Move the dependency on libcap2-bin to a Recommends instead, to avoid
     depending on a lower priority package.
+  * Fix a typo in flood ping output. (Closes 698287)
 
  --
 
