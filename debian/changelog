@@ -8,7 +8,7 @@ iputils (3:20121221-4) unstable; urgency=low
     queries are answered. (Closes: 686944)
   * Fix return hops counting in tracepath and tracepath6. (Closes: 629075)
 
- --
+ -- Noah Meyerhans <noahm@debian.org>  Thu, 12 Dec 2013 23:54:51 -0800
 
 iputils (3:20121221-3) unstable; urgency=low
 
