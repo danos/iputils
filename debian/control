@@ -11,9 +11,8 @@ Package: iputils-ping
 Architecture: any
 Provides: ping
 Priority: important
-Conflicts: ping, suidmanager (<< 0.50)
-Depends: ${shlibs:Depends}, ${misc:Depends}, libcap2-bin
-Replaces: netbase (<< 4.00)
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: libcap2-bin
 Description: Tools to test the reachability of network hosts
  The ping command sends ICMP ECHO_REQUEST packets to a host in order to
  test if the host is reachable via the network.
@@ -25,9 +24,7 @@ Package: iputils-tracepath
 Architecture: any
 Suggests: traceroute
 Priority: optional
-Depends: ${shlibs:Depends}, ${misc:Depends}, libcap2-bin
-Conflicts: suidmanager (<< 0.50)
-Replaces: netbase (<< 4.00)
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Tools to trace the network path to a remote host
  The tracepath utility is similar to the traceroute utility, but also
  attempts to discover the MTU of the path.
@@ -37,9 +34,9 @@ Description: Tools to trace the network path to a remote host
 
 Package: iputils-arping
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libcap2-bin
-Conflicts: suidmanager (<< 0.50), arping, iputils-ping (<<20001110-6)
-Replaces: netbase (<< 4.00)
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: libcap2-bin
+Conflicts: arping
 Description: Tool to send ICMP echo requests to an ARP address
  The arping command acts like the standard ping command except it pings
  a machine by its ARP address instead of its IP address.  It is typically
@@ -48,7 +45,7 @@ Description: Tool to send ICMP echo requests to an ARP address
 
 Package: iputils-clockdiff
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libcap2-bin
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Measure the time difference between networked computers
  Clockdiff computes the difference between the time of the machine on
  which it is called and the time of other network-accessible machines.
