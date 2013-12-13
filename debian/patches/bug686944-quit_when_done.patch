@@ -1,0 +1,13 @@
+Index: iputils/arping.c
+===================================================================
+--- iputils.orig/arping.c	2013-12-12 23:12:38.006369952 -0800
++++ iputils/arping.c	2013-12-12 23:15:11.727132557 -0800
+@@ -476,7 +476,7 @@
+ 		brd_recv++;
+ 	if (ah->ar_op == htons(ARPOP_REQUEST))
+ 		req_recv++;
+-	if (quit_on_reply)
++	if (quit_on_reply || (count == 0 && received == sent))
+ 		finish();
+ 	if(!broadcast_only) {
+ 		memcpy(((struct sockaddr_ll *)&he)->sll_addr, p, ((struct sockaddr_ll *)&me)->sll_halen);

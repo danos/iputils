@@ -10,3 +10,4 @@ upstream-max-hops.patch
 upstream-tracepath-printf-cleanup.patch
 bug109709-less-dns.patch
 bug698287-typo.patch
+bug686944-quit_when_done.patch
