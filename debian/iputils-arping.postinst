@@ -19,6 +19,8 @@ done
 
 #DEBHELPER#
 
+exit 0
+
 # Local variables:
 # mode: shell-script
 # tab-width: 4

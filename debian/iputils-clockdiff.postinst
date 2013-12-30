@@ -1,0 +1,27 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = configure ]; then
+	if [ -x /sbin/setcap ]; then
+		if /sbin/setcap cap_net_raw+ep /usr/bin/clockdiff; then
+			echo "Setcap worked! clockdiff is not suid!"
+		else
+			echo "Setcap failed on /usr/bin/clockdiff, falling back to setuid" >&2
+			chmod u+s /usr/bin/clockdiff
+		fi
+	else
+		echo "Setcap is not installed, falling back to setuid" >&2
+		chmod u+s /usr/bin/clockdiff
+	fi
+fi
+
+#DEBHELPER#
+
+exit 0
+
+# Local variables:
+# mode: shell-script
+# tab-width: 4
+# indent-tabs-mode: nil
+# end:

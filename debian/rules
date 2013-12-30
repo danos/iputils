@@ -92,11 +92,11 @@ binary-arch: build install
 	dh_link
 	dh_compress
 	dh_fixperms
-	chmod 4755 debian/iputils-ping/bin/ping
-	chmod 4755 debian/iputils-ping/bin/ping6
-	chmod 4755 debian/iputils-tracepath/usr/bin/traceroute6.iputils
-	chmod 4755 debian/iputils-arping/usr/bin/arping
-	chmod 4755 debian/iputils-clockdiff/usr/bin/clockdiff
+	chmod 755 debian/iputils-ping/bin/ping
+	chmod 755 debian/iputils-ping/bin/ping6
+	chmod 755 debian/iputils-tracepath/usr/bin/traceroute6.iputils
+	chmod 755 debian/iputils-arping/usr/bin/arping
+	chmod 755 debian/iputils-clockdiff/usr/bin/clockdiff
 	ln -sf ping.8.gz debian/iputils-ping/usr/share/man/man8/ping6.8.gz
 	ln -sf tracepath.8.gz debian/iputils-tracepath/usr/share/man/man8/tracepath6.8.gz
 	dh_installdeb
