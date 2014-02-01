@@ -3,7 +3,7 @@ iputils (3:20121221-5) UNRELEASED; urgency=low
   * Improve management of capabilities.
   * Set capabilities on all binaries.
   * Invalidate ping's DNS cache when a response comes from a new host
-    (e.g.  when processing an error message) (Closes: 732186)
+    (e.g.  when processing an error message) (Closes: 732186, 736470)
   * Bump standards version to 3.9.5 (no changes)
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 29 Dec 2013 23:27:57 -0800
