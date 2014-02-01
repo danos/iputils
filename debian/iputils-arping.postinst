@@ -6,7 +6,7 @@ if [ "$1" = configure ]; then
     # If we have setcap is installed, try setting cap_net_raw+ep,
     # which allows us to install our binaries without the setuid
     # bit.
-    if type setcap > /dev/null; then
+    if command -v setcap > /dev/null; then
         if setcap cap_net_raw+ep /usr/bin/arping; then
             echo "Setcap worked! arping is not suid!"
         else

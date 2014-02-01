@@ -3,7 +3,7 @@
 set -e
 
 if [ "$1" = configure ]; then
-	if type setcap > /dev/null; then
+	if command -v setcap > /dev/null; then
 		if setcap cap_net_raw+ep /usr/bin/clockdiff; then
 			echo "Setcap worked! clockdiff is not suid!"
 		else
