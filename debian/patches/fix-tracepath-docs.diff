@@ -1,7 +1,7 @@
 Index: iputils/doc/Makefile
 ===================================================================
---- iputils.orig/doc/Makefile	2007-10-28 17:27:31.000000000 -0400
-+++ iputils/doc/Makefile	2007-12-09 21:01:24.000000000 -0500
+--- iputils.orig/doc/Makefile	2014-02-01 12:27:29.164716082 -0800
++++ iputils/doc/Makefile	2014-02-01 12:27:48.864813759 -0800
 @@ -6,7 +6,7 @@
  
  html: $(HTMLFILES) iputils.html
@@ -21,3 +21,41 @@ Index: iputils/doc/Makefile
  clean:
  	@rm -rf $(MANFILES) $(HTMLFILES) iputils.html tmp.db2html tmp.db2man
  
+Index: iputils/doc/tracepath.sgml
+===================================================================
+--- iputils.orig/doc/tracepath.sgml	2014-02-01 12:27:28.508712829 -0800
++++ iputils/doc/tracepath.sgml	2014-02-01 12:29:16.509249249 -0800
+@@ -46,21 +46,21 @@
+ <variablelist>
+ 
+  <varlistentry>
+-  <term><option/-n/</term>
++  <term><option>-n</option></term>
+   <listitem><para>
+ Print primarily IP addresses numerically.
+   </para></listitem>
+  </varlistentry>
+ 
+  <varlistentry>
+-  <term><option/-b/</term>
++  <term><option>-b</option></term>
+   <listitem><para>
+ Print both of host names and IP addresses.
+   </para></listitem>
+  </varlistentry>
+ 
+  <varlistentry>
+-  <term><option/-l/</term>
++  <term><option>-l</option></term>
+   <listitem><para>
+ Sets the initial packet length to <replaceable/pktlen/ instead of
+ 65535 for <command/tracepath/ or 128000 for <command/tracepath6/.
+@@ -68,7 +68,7 @@
+  </varlistentry>
+ 
+  <varlistentry>
+-  <term><option/-p/</term>
++  <term><option>-p</option></term>
+   <listitem><para>
+ Sets the initial destination port to use.
+   </para></listitem>
