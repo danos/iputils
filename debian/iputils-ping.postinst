@@ -6,8 +6,8 @@ if [ "$1" = configure ]; then
     # If we have setcap is installed, try setting cap_net_raw+ep,
     # which allows us to install our binaries without the setuid
     # bit.
-    if [ -x /sbin/setcap ]; then
-        if /sbin/setcap cap_net_raw+ep /bin/ping cap_net_raw+ep /bin/ping6; then
+    if type setcap > /dev/null; then
+        if setcap cap_net_raw+ep /bin/ping cap_net_raw+ep /bin/ping6; then
             echo "Setcap worked! Ping(6) is not suid!"
         else
             echo "Setcap failed on /bin/ping, falling back to setuid" >&2

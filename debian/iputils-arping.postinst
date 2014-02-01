@@ -2,20 +2,22 @@
 
 set -e
 
-PATH=/usr/bin:/bin:/usr/sbin:/sbin
-export PATH
-
-for f in /usr/bin/arping; do
-    # if the admin has set an override, don't do anything at all
-    if ! dpkg-statoverride --list $f > /dev/null 2>&1; then
-        if getcap $f > /dev/null 2>&1; then
-            if echo "cap_net_raw+p" | setcap -q - $f; then
-                # remove the setuid bit!
-                chmod -s $f
-            fi
+if [ "$1" = configure ]; then
+    # If we have setcap is installed, try setting cap_net_raw+ep,
+    # which allows us to install our binaries without the setuid
+    # bit.
+    if type setcap > /dev/null; then
+        if setcap cap_net_raw+ep /usr/bin/arping; then
+            echo "Setcap worked! arping is not suid!"
+        else
+            echo "Setcap failed on /usr/bin/arping, falling back to setuid" >&2
+            chmod u+s /usr/bin/arping
         fi
+    else
+        echo "Setcap is not installed, falling back to setuid" >&2
+        chmod u+s /usr/bin/arping
     fi
-done
+fi
 
 #DEBHELPER#
 

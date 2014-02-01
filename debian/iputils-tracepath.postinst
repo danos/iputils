@@ -6,8 +6,8 @@ if [ "$1" = configure ]; then
 	update-alternatives \
 		--install /usr/bin/traceroute6 traceroute6 /usr/bin/traceroute6.iputils 100 \
 		--slave /usr/share/man/man8/traceroute6.8.gz traceroute6.8.gz /usr/share/man/man8/traceroute6.iputils.8.gz
-	if [ -x /sbin/setcap ]; then
-		if /sbin/setcap cap_net_raw+ep /usr/bin/traceroute6.iputils; then
+	if type setcap > /dev/null; then
+		if setcap cap_net_raw+ep /usr/bin/traceroute6.iputils; then
 			echo "Setcap worked! traceroute6 is not suid!"
 		else
 			echo "Setcap failed on /usr/bin/traceroute6.iputils, falling back to setuid" >&2
