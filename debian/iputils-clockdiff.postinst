@@ -5,6 +5,7 @@ set -e
 if [ "$1" = configure ]; then
 	if command -v setcap > /dev/null; then
 		if setcap cap_net_raw+ep /usr/bin/clockdiff; then
+            chmod u-s /usr/bin/clockdiff
 			echo "Setcap worked! clockdiff is not suid!"
 		else
 			echo "Setcap failed on /usr/bin/clockdiff, falling back to setuid" >&2

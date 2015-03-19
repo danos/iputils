@@ -1,3 +1,10 @@
+iputils (3:20121221-6) UNRELEASED; urgency=medium
+
+  * Remove setuid bits on binaries if setcap succeeds during 
+    reconfigure. (Closes: 778500)
+
+ -- Noah Meyerhans <noahm@debian.org>  Wed, 18 Mar 2015 20:29:32 -0700
+
 iputils (3:20121221-5) unstable; urgency=low
 
   * Improve management of capabilities.
