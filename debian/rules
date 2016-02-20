@@ -41,7 +41,8 @@ install: build
 	dh_installdirs -piputils-clockdiff usr/bin
 
 	install -m 4755 -o root -g root ping debian/iputils-ping/bin/
-	install -m 4755 -o root -g root ping6 debian/iputils-ping/bin/
+	ln -s ping debian/iputils-ping/bin/ping6
+	ln -s ping debian/iputils-ping/bin/ping4
 	install -m 4755 -o root -g root traceroute6 \
 		debian/iputils-tracepath/usr/bin/traceroute6.iputils
 	install -m 0755 -o root -g root tracepath \
@@ -93,7 +94,6 @@ binary-arch: build install
 	dh_compress
 	dh_fixperms
 	chmod 755 debian/iputils-ping/bin/ping
-	chmod 755 debian/iputils-ping/bin/ping6
 	chmod 755 debian/iputils-tracepath/usr/bin/traceroute6.iputils
 	chmod 755 debian/iputils-arping/usr/bin/arping
 	chmod 755 debian/iputils-clockdiff/usr/bin/clockdiff
