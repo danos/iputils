@@ -10,12 +10,14 @@ export DEBIAN_LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
 
+TARGETS=ping tracepath tracepath6 traceroute6 clockdiff
+
 configure:
 	dh_testdir
 
 build-arch: configure
 	dh_testdir
-	$(MAKE)
+	$(MAKE) $(TARGETS)
 
 build-indep: configure
 	dh_testdir
