@@ -1,0 +1,21 @@
+commit 0d779cd1d0c6c72b79d583223dd5da66a8dc34d5
+Author: David Heidelberg <david@ixit.cz>
+Date:   Sun Nov 15 02:12:07 2015 +0100
+
+    doc/Makefile: require bash, because we use pushd and popd
+    
+    Fixes: https://github.com/iputils/iputils/issues/27
+    
+    Reported-by: Thiago Kurovski
+    Signed-off-by: David Heidelberg <david@ixit.cz>
+
+Index: iputils/doc/Makefile
+===================================================================
+--- iputils.orig/doc/Makefile
++++ iputils/doc/Makefile
+@@ -1,3 +1,5 @@
++SHELL:=/bin/bash #required for pushd and popd
++
+ SGMLFILES=$(shell echo *.sgml)
+ HTMLFILES=$(subst .sgml,.html,$(SGMLFILES)) index.html
+ MANFILES=$(subst .sgml,.8,$(SGMLFILES))

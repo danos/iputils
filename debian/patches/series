@@ -1,2 +1,3 @@
 targets.diff
 set_buildflags
+upstream-make-requires-bash.patch
