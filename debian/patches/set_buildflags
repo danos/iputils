@@ -2,7 +2,7 @@ Index: iputils/Makefile
 ===================================================================
 --- iputils.orig/Makefile
 +++ iputils/Makefile
-@@ -138,7 +138,7 @@ all: $(TARGETS)
+@@ -137,7 +137,7 @@ all: $(TARGETS)
  	$(COMPILE.c) $< $(DEF_$(patsubst %.o,%,$@)) -o $@
  LINK.o += $(CFLAGS)
  $(TARGETS): %: %.o

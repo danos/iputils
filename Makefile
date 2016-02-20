@@ -115,7 +115,7 @@ endif
 endif
 
 # -------------------------------------
-TARGETS=ping tracepath tracepath6 traceroute6 clockdiff arping
+TARGETS=ping tracepath tracepath6 traceroute6 clockdiff rdisc arping tftpd rarpd
 
 LDLIBS=$(LDLIB) $(ADDLIB)
 
@@ -137,7 +137,7 @@ all: $(TARGETS)
 	$(COMPILE.c) $< $(DEF_$(patsubst %.o,%,$@)) -o $@
 LINK.o += $(CFLAGS)
 $(TARGETS): %: %.o
-	$(LINK.o) $^ $(DEBIAN_LDFLAGS) $(LIB_$@) $(LDLIBS) -o $@
+	$(LINK.o) $^ $(LIB_$@) $(LDLIBS) -o $@
 
 # -------------------------------------
 # arping
