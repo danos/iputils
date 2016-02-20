@@ -1,3 +1,6 @@
+Description: Pass the DEBIAN_LDFLAGS environment variable to the linker
+Origin: vendor
+Author: Noah Meyerhans <noahm@debian.org>
 Index: iputils/Makefile
 ===================================================================
 --- iputils.orig/Makefile
