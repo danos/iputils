@@ -1,3 +1,9 @@
+iputils (3:20150815-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Noah Meyerhans <noahm@debian.org>  Fri, 19 Feb 2016 20:12:37 -0800
+
 iputils (3:20121221-6) UNRELEASED; urgency=medium
 
   * Remove setuid bits on binaries if setcap succeeds during 
