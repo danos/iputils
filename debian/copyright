@@ -3,7 +3,7 @@ Sat,  5 Aug 2000 19:51:36 +1000.
 It has been maintained for Debian by Noah Meyerhans <noahm@debian.org>
 since 6 Feb 2001.
 
-It was downloaded from ftp://ftp.inr.ac.ru/ip-routing/
+It was downloaded from https://github.com/iputils/iputils
 
 Upstream Author: Alexey Kuznetsov <kuznet@ms2.inr.ac.ru>
 

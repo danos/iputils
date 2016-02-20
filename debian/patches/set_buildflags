@@ -1,44 +1,13 @@
 Index: iputils/Makefile
 ===================================================================
---- iputils.orig/Makefile	2013-05-14 23:50:41.032029459 -0700
-+++ iputils/Makefile	2013-05-14 23:51:34.188293041 -0700
-@@ -49,10 +49,11 @@
- # -------------------------------------
- # What a pity, all new gccs are buggy and -Werror does not work. Sigh.
- # CCOPT=-fno-strict-aliasing -Wstrict-prototypes -Wall -Werror -g
--CCOPT=-fno-strict-aliasing -Wstrict-prototypes -Wall -g
-+CCOPT=-Wstrict-prototypes -Wall
- CCOPTOPT=-O3
- GLIBCFIX=-D_GNU_SOURCE
- DEFINES=
-+CFLAGS=$(DEBIAN_CFLAGS) $(CCOPT) $(GLIBCFIX) $(DEFINES)
- LDLIB=
- 
- FUNC_LIB = $(if $(filter static,$(1)),$(LDFLAG_STATIC) $(2) $(LDFLAG_DYNAMIC),$(2))
-@@ -110,7 +111,7 @@
- IPV6_TARGETS=tracepath6 traceroute6 ping6
- TARGETS=$(IPV4_TARGETS) $(IPV6_TARGETS)
- 
--CFLAGS=$(CCOPTOPT) $(CCOPT) $(GLIBCFIX) $(DEFINES)
-+CFLAGS=$(DEBIAN_CFLAGS) $(CCOPTOPT) $(CCOPT) $(GLIBCFIX) $(DEFINES)
- LDLIBS=$(LDLIB) $(ADDLIB)
- 
- UNAME_N:=$(shell uname -n)
-@@ -130,7 +131,7 @@
- %.o: %.c
+--- iputils.orig/Makefile
++++ iputils/Makefile
+@@ -138,7 +138,7 @@ all: $(TARGETS)
  	$(COMPILE.c) $< $(DEF_$(patsubst %.o,%,$@)) -o $@
+ LINK.o += $(CFLAGS)
  $(TARGETS): %: %.o
 -	$(LINK.o) $^ $(LIB_$@) $(LDLIBS) -o $@
 +	$(LINK.o) $^ $(DEBIAN_LDFLAGS) $(LIB_$@) $(LDLIBS) -o $@
  
  # -------------------------------------
  # arping
-@@ -149,7 +150,7 @@
- DEF_ping_common = $(DEF_CAP) $(DEF_IDN)
- DEF_ping  = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS)
- LIB_ping  = $(LIB_CAP) $(LIB_IDN)
--DEF_ping6 = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS) $(DEF_ENABLE_PING6_RTHDR)
-+DEF_ping6 = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS) $(DEF_ENABLE_PING6_RTHDR) $(DEF_CRYPTO)
- LIB_ping6 = $(LIB_CAP) $(LIB_IDN) $(LIB_RESOLV) $(LIB_CRYPTO)
- 
- ping: ping_common.o
