@@ -98,6 +98,7 @@ binary-arch: build install
 	chmod 755 debian/iputils-arping/usr/bin/arping
 	chmod 755 debian/iputils-clockdiff/usr/bin/clockdiff
 	ln -sf ping.8.gz debian/iputils-ping/usr/share/man/man8/ping6.8.gz
+	ln -sf ping.8.gz debian/iputils-ping/usr/share/man/man8/ping4.8.gz
 	ln -sf tracepath.8.gz debian/iputils-tracepath/usr/share/man/man8/tracepath6.8.gz
 	dh_installdeb
 	dh_shlibdeps
