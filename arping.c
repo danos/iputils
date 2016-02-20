@@ -11,18 +11,14 @@
  */
 
 #include <stdlib.h>
-#include <sys/param.h>
-#include <sys/socket.h>
-#include <linux/sockios.h>
-#include <sys/file.h>
-#include <sys/time.h>
-#include <sys/signal.h>
-#include <sys/ioctl.h>
+#include <time.h>
+#include <signal.h>
 #include <net/if.h>
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <net/if_arp.h>
-#include <sys/uio.h>
+#include <sys/ioctl.h>
+#include <sys/param.h>
 #ifdef CAPABILITIES
 #include <sys/prctl.h>
 #include <sys/capability.h>
@@ -90,7 +86,7 @@ int broadcast_only;
 struct sockaddr_storage me;
 struct sockaddr_storage he;
 
-struct timeval start, last;
+struct timespec start, last;
 
 int sent, brd_sent;
 int received, brd_recv, req_recv;
@@ -271,7 +267,7 @@ int send_pack(int s, struct in_addr src, struct in_addr dst,
 	      struct sockaddr_ll *ME, struct sockaddr_ll *HE)
 {
 	int err;
-	struct timeval now;
+	struct timespec now;
 	unsigned char buf[256];
 	struct arphdr *ah = (struct arphdr*)buf;
 	unsigned char *p = (unsigned char *)(ah+1);
@@ -299,7 +295,7 @@ int send_pack(int s, struct in_addr src, struct in_addr dst,
 	memcpy(p, &dst, 4);
 	p+=4;
 
-	gettimeofday(&now, NULL);
+	clock_gettime(CLOCK_MONOTONIC, &now);
 	err = sendto(s, buf, p-buf, 0, (struct sockaddr*)HE, SLL_LEN(ah->ar_hln));
 	if (err == p-buf) {
 		last = now;
@@ -335,29 +331,52 @@ void finish(void)
 	exit(!received);
 }
 
+static void timespec_sub(struct timespec *a, struct timespec *b,
+			 struct timespec *res)
+{
+	res->tv_sec = a->tv_sec - b->tv_sec;
+	res->tv_nsec = a->tv_nsec - b->tv_nsec;
+	if (a->tv_nsec < b->tv_nsec) {
+		res->tv_sec--;
+		res->tv_nsec += 1000000000;
+	}
+}
+
+static int timespec_later(struct timespec *a, struct timespec *b)
+{
+	return (a->tv_sec > b->tv_sec) ||
+		((a->tv_sec == b->tv_sec) && (a->tv_nsec > b->tv_nsec));
+}
+
 void catcher(void)
 {
-	struct timeval tv, tv_s, tv_o;
+	struct timespec ts, ts_s, ts_o;
 
-	gettimeofday(&tv, NULL);
+	clock_gettime(CLOCK_MONOTONIC, &ts);
 
 	if (start.tv_sec==0)
-		start = tv;
+		start = ts;
 
-	timersub(&tv, &start, &tv_s);
-	tv_o.tv_sec = timeout;
-	tv_o.tv_usec = 500 * 1000;
+	timespec_sub(&ts, &start, &ts_s);
+	ts_o.tv_sec = timeout;
+	ts_o.tv_nsec = 500 * 1000000;
 
-	if (count-- == 0 || (timeout && timercmp(&tv_s, &tv_o, >)))
+	if (timeout && timespec_later(&ts_s, &ts_o))
 		finish();
 
-	timersub(&tv, &last, &tv_s);
-	tv_o.tv_sec = 0;
+	timespec_sub(&ts, &last, &ts_s);
+	ts_o.tv_sec = 0;
 
-	if (last.tv_sec==0 || timercmp(&tv_s, &tv_o, >)) {
+	if (last.tv_sec==0 || timespec_later(&ts_s, &ts_o)) {
+		if (!timeout && (sent == count))
+			finish();
 		send_pack(s, src, dst,
 			  (struct sockaddr_ll *)&me, (struct sockaddr_ll *)&he);
-		if (count == 0 && unsolicited)
+		if ((sent == count) && unsolicited)
+			/* We usually wait for an extra iteration
+			 * after sending the last request to see if we
+			 * get a reply, but we don't need to in
+			 * unsolicited mode */
 			finish();
 	}
 	alarm(1);
@@ -375,12 +394,12 @@ void print_hex(unsigned char *p, int len)
 
 int recv_pack(unsigned char *buf, int len, struct sockaddr_ll *FROM)
 {
-	struct timeval tv;
+	struct timespec ts;
 	struct arphdr *ah = (struct arphdr*)buf;
 	unsigned char *p = (unsigned char *)(ah+1);
 	struct in_addr src_ip, dst_ip;
 
-	gettimeofday(&tv, NULL);
+	clock_gettime(CLOCK_MONOTONIC, &ts);
 
 	/* Filter out wild packets */
 	if (FROM->sll_pkttype != PACKET_HOST &&
@@ -456,8 +475,8 @@ int recv_pack(unsigned char *buf, int len, struct sockaddr_ll *FROM)
 			printf("]");
 		}
 		if (last.tv_sec) {
-			long usecs = (tv.tv_sec-last.tv_sec) * 1000000 +
-				tv.tv_usec-last.tv_usec;
+			long usecs = (ts.tv_sec-last.tv_sec) * 1000000 +
+				(ts.tv_nsec-last.tv_nsec+500) / 1000;
 			long msecs = (usecs+500)/1000;
 			usecs -= msecs*1000 - 500;
 			printf(" %ld.%03ldms\n", msecs, usecs);
@@ -467,11 +486,13 @@ int recv_pack(unsigned char *buf, int len, struct sockaddr_ll *FROM)
 		fflush(stdout);
 	}
 	received++;
+	if (timeout && (received == count))
+		finish();
 	if (FROM->sll_pkttype != PACKET_HOST)
 		brd_recv++;
 	if (ah->ar_op == htons(ARPOP_REQUEST))
 		req_recv++;
-	if (quit_on_reply)
+	if (quit_on_reply || (count == 0 && received == sent))
 		finish();
 	if(!broadcast_only) {
 		memcpy(((struct sockaddr_ll *)&he)->sll_addr, p, ((struct sockaddr_ll *)&me)->sll_halen);
@@ -490,10 +511,6 @@ enum {
 	SYSFS_DEVATTR_IFINDEX,
 	SYSFS_DEVATTR_FLAGS,
 	SYSFS_DEVATTR_ADDR_LEN,
-#if 0
-	SYSFS_DEVATTR_TYPE,
-	SYSFS_DEVATTR_ADDRESS,
-#endif
 	SYSFS_DEVATTR_BROADCAST,
 	SYSFS_DEVATTR_NUM
 };
@@ -525,17 +542,6 @@ struct sysfs_devattrs {
 		.name		= "flags",
 		.handler	= sysfs_devattr_ulong_hex,
 	},
-#if 0
-	[SYSFS_DEVATTR_TYPE] = {
-		.name		= "type",
-		.handler	= sysfs_devattr_ulong_dec,
-	},
-	[SYSFS_DEVATTR_ADDRESS] = {
-		.name		= "address",
-		.handler	= sysfs_devattr_macaddr,
-		.free		= 1,
-	},
-#endif
 	[SYSFS_DEVATTR_BROADCAST] = {
 		.name		= "broadcast",
 		.handler	= sysfs_devattr_macaddr,
@@ -596,7 +602,7 @@ static int find_device_by_ifaddrs(void)
 #ifndef WITHOUT_IFADDRS
 	int rc;
 	struct ifaddrs *ifa0, *ifa;
-	int count = 0;
+	int n = 0;
 
 	rc = getifaddrs(&ifa0);
 	if (rc) {
@@ -622,11 +628,11 @@ static int find_device_by_ifaddrs(void)
 
 		device.ifa = ifa;
 
-		if (count++)
+		if (n++)
 			break;
 	}
 
-	if (count == 1 && device.ifa) {
+	if (n == 1 && device.ifa) {
 		device.ifindex = if_nametoindex(device.ifa->ifa_name);
 		if (!device.ifindex) {
 			perror("arping: if_nametoindex");
@@ -724,7 +730,7 @@ int find_device_by_sysfs(void)
 	struct sysfs_class_device *dev;
 	struct sysfs_attribute *dev_attr;
 	struct sysfs_devattr_values sysfs_devattr_values;
-	int count = 0;
+	int n = 0;
 
 	if (!device.sysfs) {
 		device.sysfs = malloc(sizeof(*device.sysfs));
@@ -798,7 +804,7 @@ int find_device_by_sysfs(void)
 		memcpy(device.sysfs, &sysfs_devattr_values, sizeof(*device.sysfs));
 		sysfs_devattr_values_init(&sysfs_devattr_values, 0);
 
-		if (count++)
+		if (n++)
 			break;
 
 		continue;
@@ -806,7 +812,7 @@ do_next:
 		sysfs_devattr_values_init(&sysfs_devattr_values, 1);
 	}
 
-	if (count == 1) {
+	if (n == 1) {
 		device.ifindex = device.sysfs->value[SYSFS_DEVATTR_IFINDEX].ulong;
 		device.name = device.sysfs->ifname;
 	}
@@ -842,7 +848,7 @@ static int find_device_by_ioctl(void)
 	size_t ifrsize = sizeof(*ifr);
 	struct ifconf ifc;
 	static struct ifreq ifrbuf;
-	int count = 0;
+	int n = 0;
 
 	s = socket(AF_INET, SOCK_DGRAM, 0);
 	if (s < 0) {
@@ -856,7 +862,7 @@ static int find_device_by_ioctl(void)
 		strncpy(ifrbuf.ifr_name, device.name, sizeof(ifrbuf.ifr_name) - 1);
 		if (check_device_by_ioctl(s, &ifrbuf))
 			goto out;
-		count++;
+		n++;
 	} else {
 		do {
 			int rc;
@@ -892,14 +898,14 @@ static int find_device_by_ioctl(void)
 			if (check_device_by_ioctl(s, &ifrbuf))
 				continue;
 			memcpy(&ifrbuf.ifr_name, ifr->ifr_name, sizeof(ifrbuf.ifr_name));
-			if (count++)
+			if (n++)
 				break;
 		}
 	}
 
 	close(s);
 
-	if (count == 1) {
+	if (n == 1) {
 		device.ifindex = ifrbuf.ifr_ifindex;
 		device.name = ifrbuf.ifr_name;
 	}
@@ -1085,30 +1091,24 @@ main(int argc, char **argv)
 	}
 
 	if (inet_aton(target, &dst) != 1) {
-		struct hostent *hp;
-		char *idn = target;
+		struct addrinfo hints = {
+			.ai_family = AF_INET,
+			.ai_socktype = SOCK_RAW,
 #ifdef USE_IDN
-		int rc;
-
-		rc = idna_to_ascii_lz(target, &idn, 0);
-
-		if (rc != IDNA_SUCCESS) {
-			fprintf(stderr, "arping: IDN encoding failed: %s\n", idna_strerror(rc));
-			exit(2);
-		}
+			.ai_flags = AI_IDN | AI_CANONIDN
 #endif
+		};
+		struct addrinfo *result;
+		int status;
 
-		hp = gethostbyname2(idn, AF_INET);
-		if (!hp) {
-			fprintf(stderr, "arping: unknown host %s\n", target);
+		status = getaddrinfo(target, NULL, &hints, &result);
+		if (status) {
+			fprintf(stderr, "arping: %s: %s\n", target, gai_strerror(status));
 			exit(2);
 		}
 
-#ifdef USE_IDN
-		free(idn);
-#endif
-
-		memcpy(&dst, hp->h_addr, 4);
+		memcpy(&dst, &((struct sockaddr_in *) result->ai_addr)->sin_addr, sizeof dst);
+		freeaddrinfo(result);
 	}
 
 	if (source && inet_aton(source, &src) != 1) {
@@ -1215,16 +1215,22 @@ main(int argc, char **argv)
 		socklen_t alen = sizeof(from);
 		int cc;
 
+		sigemptyset(&sset);
+		sigaddset(&sset, SIGALRM);
+		sigaddset(&sset, SIGINT);
+		/* Unblock SIGALRM so that the previously called alarm()
+		 * can prevent recvfrom from blocking forever in case the
+		 * inherited procmask is blocking SIGALRM and no packet
+		 * is received. */
+		sigprocmask(SIG_UNBLOCK, &sset, &osset);
+
 		if ((cc = recvfrom(s, packet, sizeof(packet), 0,
 				   (struct sockaddr *)&from, &alen)) < 0) {
 			perror("arping: recvfrom");
 			continue;
 		}
 
-		sigemptyset(&sset);
-		sigaddset(&sset, SIGALRM);
-		sigaddset(&sset, SIGINT);
-		sigprocmask(SIG_BLOCK, &sset, &osset);
+		sigprocmask(SIG_BLOCK, &sset, NULL);
 		recv_pack(packet, cc, (struct sockaddr_ll *)&from);
 		sigprocmask(SIG_SETMASK, &osset, NULL);
 	}

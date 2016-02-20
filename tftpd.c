@@ -30,18 +30,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-#ifndef lint
-char copyright[] =
-"@(#) Copyright (c) 1983 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
-
-#ifndef lint
-/*static char sccsid[] = "from: @(#)tftpd.c	5.13 (Berkeley) 2/26/91";*/
-/*static char rcsid[] = "$Id: tftpd.c,v 1.3 1993/08/01 18:28:53 mycroft Exp $";*/
-#endif /* not lint */
-
 /*
  * Trivial file transfer protocol server.
  *
@@ -109,17 +97,20 @@ int main(int ac, char **av)
 	register int n = 0;
 	int on = 1;
 
+	openlog("tftpd", LOG_PID, LOG_DAEMON);
+
 	/* Sanity. If parent forgot to setuid() on us. */
 	if (geteuid() == 0) {
-		setgid(65534);
-		setuid(65534);
+		if (setgid(65534) || setuid(65534)) {
+			syslog(LOG_ERR, "set*id failed: %m\n");
+			exit(1);
+		}
 	}
 
 	ac--; av++;
 	while (ac-- > 0 && n < MAXARG)
 		dirs[n++] = *av++;
 
-	openlog("tftpd", LOG_PID, LOG_DAEMON);
 	if (ioctl(0, FIONBIO, &on) < 0) {
 		syslog(LOG_ERR, "ioctl(FIONBIO): %m\n");
 		exit(1);
@@ -363,8 +354,8 @@ void sendfile(struct formats *pf)
 			nak(errno + 100);
 			goto abort;
 		}
-		dp->th_opcode = htons((u_short)DATA);
-		dp->th_block = htons((u_short)block);
+		dp->th_opcode = htons((unsigned short)DATA);
+		dp->th_block = htons((unsigned short)block);
 		timeout = 0;
 		(void) setjmp(timeoutbuf);
 
@@ -383,8 +374,8 @@ send_data:
 				syslog(LOG_ERR, "tftpd: read: %m\n");
 				goto abort;
 			}
-			ap->th_opcode = ntohs((u_short)ap->th_opcode);
-			ap->th_block = ntohs((u_short)ap->th_block);
+			ap->th_opcode = ntohs((unsigned short)ap->th_opcode);
+			ap->th_block = ntohs((unsigned short)ap->th_block);
 
 			if (ap->th_opcode == ERROR)
 				goto abort;
@@ -429,8 +420,8 @@ void recvfile(struct formats *pf)
 	ap = (struct tftphdr *)ackbuf;
 	do {
 		timeout = 0;
-		ap->th_opcode = htons((u_short)ACK);
-		ap->th_block = htons((u_short)block);
+		ap->th_opcode = htons((unsigned short)ACK);
+		ap->th_block = htons((unsigned short)block);
 		block++;
 		(void) setjmp(timeoutbuf);
 send_ack:
@@ -448,8 +439,8 @@ send_ack:
 				syslog(LOG_ERR, "tftpd: read: %m\n");
 				goto abort;
 			}
-			dp->th_opcode = ntohs((u_short)dp->th_opcode);
-			dp->th_block = ntohs((u_short)dp->th_block);
+			dp->th_opcode = ntohs((unsigned short)dp->th_opcode);
+			dp->th_block = ntohs((unsigned short)dp->th_block);
 			if (dp->th_opcode == ERROR)
 				goto abort;
 			if (dp->th_opcode == DATA) {
@@ -474,8 +465,8 @@ send_ack:
 	write_behind(file, pf->f_convert);
 	(void) fclose(file);            /* close data file */
 
-	ap->th_opcode = htons((u_short)ACK);    /* send the "final" ack */
-	ap->th_block = htons((u_short)(block));
+	ap->th_opcode = htons((unsigned short)ACK);    /* send the "final" ack */
+	ap->th_block = htons((unsigned short)(block));
 	(void) send(peer, ackbuf, 4, confirmed);
 
 	signal(SIGALRM, justquit);      /* just quit on timeout */
@@ -519,8 +510,8 @@ void nak(int error)
 	register struct errmsg *pe;
 
 	tp = (struct tftphdr *)buf;
-	tp->th_opcode = htons((u_short)ERROR);
-	tp->th_code = htons((u_short)error);
+	tp->th_opcode = htons((unsigned short)ERROR);
+	tp->th_code = htons((unsigned short)error);
 	for (pe = errmsgs; pe->e_code >= 0; pe++)
 		if (pe->e_code == error)
 			break;

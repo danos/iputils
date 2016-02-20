@@ -1,7 +1,8 @@
-#include "ping_common.h"
-#include <ctype.h>
-#include <sched.h>
-#include <math.h>
+#include "ping.h"
+
+#ifndef HZ
+#define HZ sysconf(_SC_CLK_TCK)
+#endif
 
 int options;
 
@@ -12,8 +13,8 @@ int rtt;
 int rtt_addend;
 __u16 acked;
 
+unsigned char outpack[MAXPACKET];
 struct rcvd_table rcvd_tbl;
-
 
 /* counters */
 long npackets;			/* max packets to transmit */
@@ -23,7 +24,7 @@ long ntransmitted;		/* sequence # for outbound packets = #sent */
 long nchecksum;			/* replies with bad checksum */
 long nerrors;			/* icmp errors */
 int interval = 1000;		/* interval between packets (msec) */
-int preload;
+int preload = 1;
 int deadline = 0;		/* time to die */
 int lingertime = MAXWAIT*1000;
 struct timeval start_time, cur_time;
@@ -37,9 +38,6 @@ jmp_buf pr_addr_jmp;
  * confirm_flag fixes refusing service of kernels without MSG_CONFIRM.
  * i.e. for linux-2.2 */
 int confirm_flag = MSG_CONFIRM;
-/* And this is workaround for bug in IP_RECVERR on raw sockets which is present
- * in linux-2.2.[0-19], linux-2.4.[0-7] */
-int working_recverr;
 
 /* timing */
 int timing;			/* flag to do timing */
@@ -200,12 +198,12 @@ void drop_capabilities(void)
 /* Fills all the outpack, excluding ICMP header, but _including_
  * timestamp area with supplied pattern.
  */
-static void fill(char *patp)
+void fill(char *patp, void *packet, unsigned packet_size)
 {
 	int ii, jj, kk;
 	int pat[16];
 	char *cp;
-	u_char *bp = outpack+8;
+	unsigned char *bp = packet+8;
 
 #ifdef USE_IDN
 	setlocale(LC_ALL, "C");
@@ -225,7 +223,7 @@ static void fill(char *patp)
 	    &pat[13], &pat[14], &pat[15]);
 
 	if (ii > 0) {
-		for (kk = 0; kk <= maxpacket - (8 + ii); kk += ii)
+		for (kk = 0; kk <= packet_size - (8 + ii); kk += ii)
 			for (jj = 0; jj < ii; ++jj)
 				bp[jj + kk] = pat[jj];
 	}
@@ -240,154 +238,6 @@ static void fill(char *patp)
 	setlocale(LC_ALL, "");
 #endif
 }
-
-void common_options(int ch)
-{
-	switch(ch) {
-	case 'a':
-		options |= F_AUDIBLE;
-		break;
-	case 'A':
-		options |= F_ADAPTIVE;
-		break;
-	case 'c':
-		npackets = atoi(optarg);
-		if (npackets <= 0) {
-			fprintf(stderr, "ping: bad number of packets to transmit.\n");
-			exit(2);
-		}
-		break;
-	case 'd':
-		options |= F_SO_DEBUG;
-		break;
-	case 'D':
-		options |= F_PTIMEOFDAY;
-		break;
-	case 'i':		/* wait between sending packets */
-	{
-		double dbl;
-		char *ep;
-
-		errno = 0;
-		dbl = strtod(optarg, &ep);
-
-		if (errno || *ep != '\0' ||
-		    !finite(dbl) || dbl < 0.0 || dbl >= (double)INT_MAX / 1000 - 1.0) {
-			fprintf(stderr, "ping: bad timing interval\n");
-			exit(2);
-		}
-
-		interval = (int)(dbl * 1000);
-
-		options |= F_INTERVAL;
-		break;
-	}
-	case 'm':
-	{
-		char *endp;
-		mark = (int)strtoul(optarg, &endp, 10);
-		if (mark < 0 || *endp != '\0') {
-			fprintf(stderr, "mark cannot be negative\n");
-			exit(2);
-		}
-		options |= F_MARK;
-		break;
-	}
-	case 'w':
-		deadline = atoi(optarg);
-		if (deadline < 0) {
-			fprintf(stderr, "ping: bad wait time.\n");
-			exit(2);
-		}
-		break;
-	case 'l':
-		preload = atoi(optarg);
-		if (preload <= 0) {
-			fprintf(stderr, "ping: bad preload value, should be 1..%d\n", MAX_DUP_CHK);
-			exit(2);
-		}
-		if (preload > MAX_DUP_CHK)
-			preload = MAX_DUP_CHK;
-		if (uid && preload > 3) {
-			fprintf(stderr, "ping: cannot set preload to value > 3\n");
-			exit(2);
-		}
-		break;
-	case 'O':
-		options |= F_OUTSTANDING;
-		break;
-	case 'S':
-		sndbuf = atoi(optarg);
-		if (sndbuf <= 0) {
-			fprintf(stderr, "ping: bad sndbuf value.\n");
-			exit(2);
-		}
-		break;
-	case 'f':
-		options |= F_FLOOD;
-		setbuf(stdout, (char *)NULL);
-		/* fallthrough to numeric - avoid gethostbyaddr during flood */
-	case 'n':
-		options |= F_NUMERIC;
-		break;
-	case 'p':		/* fill buffer with user pattern */
-		options |= F_PINGFILLED;
-		fill(optarg);
-		break;
-	case 'q':
-		options |= F_QUIET;
-		break;
-	case 'r':
-		options |= F_SO_DONTROUTE;
-		break;
-	case 's':		/* size of packet to send */
-		datalen = atoi(optarg);
-		if (datalen < 0) {
-			fprintf(stderr, "ping: illegal negative packet size %d.\n", datalen);
-			exit(2);
-		}
-		if (datalen > maxpacket - 8) {
-			fprintf(stderr, "ping: packet size too large: %d\n",
-				datalen);
-			exit(2);
-		}
-		break;
-	case 'v':
-		options |= F_VERBOSE;
-		break;
-	case 'L':
-		options |= F_NOLOOP;
-		break;
-	case 't':
-		options |= F_TTL;
-		ttl = atoi(optarg);
-		if (ttl < 0 || ttl > 255) {
-			fprintf(stderr, "ping: ttl %u out of range\n", ttl);
-			exit(2);
-		}
-		break;
-	case 'U':
-		options |= F_LATENCY;
-		break;
-	case 'B':
-		options |= F_STRICTSOURCE;
-		break;
-	case 'W':
-		lingertime = atoi(optarg);
-		if (lingertime < 0 || lingertime > INT_MAX/1000000) {
-			fprintf(stderr, "ping: bad linger time.\n");
-			exit(2);
-		}
-		lingertime *= 1000;
-		break;
-	case 'V':
-		printf("ping utility, iputils-%s\n", SNAPSHOT);
-		exit(0);
-	default:
-		abort();
-	}
-}
-
 
 static void sigexit(int signo)
 {
@@ -458,7 +308,7 @@ void print_timestamp(void)
  * of the data portion are used to hold a UNIX "timeval" struct in VAX
  * byte-order, to compute the round-trip time.
  */
-int pinger(void)
+int pinger(ping_func_set_st *fset, socket_st *sock)
 {
 	static int oom_count;
 	static int tokens;
@@ -504,7 +354,7 @@ int pinger(void)
 	}
 
 resend:
-	i = send_probe();
+	i = fset->send_probe(sock, outpack, sizeof(outpack));
 
 	if (i == 0) {
 		oom_count = 0;
@@ -523,10 +373,11 @@ resend:
 	if (i > 0) {
 		/* Apparently, it is some fatal bug. */
 		abort();
-	} else if (errno == ENOBUFS || errno == ENOMEM) {
+	} else if (errno == ENOBUFS || errno == ENOMEM || errno == EPERM) {
 		int nores_interval;
 
-		/* Device queue overflow or OOM. Packet is not sent. */
+		/* Device queue overflow, OOM or operation not permitted.
+		 * Packet is not sent. */
 		tokens = 0;
 		/* Slowdown. This works only in adaptive mode (option -A) */
 		rtt_addend += (rtt < 8*50000 ? rtt/8 : 50000);
@@ -535,7 +386,8 @@ resend:
 		nores_interval = SCHINT(interval/2);
 		if (nores_interval > 500)
 			nores_interval = 500;
-		oom_count++;
+		if (errno != EPERM)
+			oom_count++;
 		if (oom_count*nores_interval < lingertime)
 			return nores_interval;
 		i = 0;
@@ -548,7 +400,7 @@ resend:
 		tokens += interval;
 		return MININTERVAL;
 	} else {
-		if ((i=receive_error_msg()) > 0) {
+		if ((i=fset->receive_error_msg(sock)) > 0) {
 			/* An ICMP error arrived. */
 			tokens += interval;
 			return MININTERVAL;
@@ -577,20 +429,20 @@ resend:
 
 /* Set socket buffers, "alloc" is an estimate of memory taken by single packet. */
 
-void sock_setbufs(int icmp_sock, int alloc)
+void sock_setbufs(socket_st *sock, int alloc)
 {
 	int rcvbuf, hold;
 	socklen_t tmplen = sizeof(hold);
 
 	if (!sndbuf)
 		sndbuf = alloc;
-	setsockopt(icmp_sock, SOL_SOCKET, SO_SNDBUF, (char *)&sndbuf, sizeof(sndbuf));
+	setsockopt(sock->fd, SOL_SOCKET, SO_SNDBUF, (char *)&sndbuf, sizeof(sndbuf));
 
 	rcvbuf = hold = alloc * preload;
 	if (hold < 65536)
 		hold = 65536;
-	setsockopt(icmp_sock, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
-	if (getsockopt(icmp_sock, SOL_SOCKET, SO_RCVBUF, (char *)&hold, &tmplen) == 0) {
+	setsockopt(sock->fd, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
+	if (getsockopt(sock->fd, SOL_SOCKET, SO_RCVBUF, (char *)&hold, &tmplen) == 0) {
 		if (hold < rcvbuf)
 			fprintf(stderr, "WARNING: probably, rcvbuf is not enough to hold preload.\n");
 	}
@@ -598,7 +450,7 @@ void sock_setbufs(int icmp_sock, int alloc)
 
 /* Protocol independent setup and parameter checks. */
 
-void setup(int icmp_sock)
+void setup(socket_st *sock)
 {
 	int hold;
 	struct timeval tv;
@@ -608,7 +460,7 @@ void setup(int icmp_sock)
 		interval = 0;
 
 	if (uid && interval < MINUSERINTERVAL) {
-		fprintf(stderr, "ping: cannot flood; minimal interval, allowed for user, is %dms\n", MINUSERINTERVAL);
+		fprintf(stderr, "ping: cannot flood; minimal interval allowed for user is %dms\n", MINUSERINTERVAL);
 		exit(2);
 	}
 
@@ -619,22 +471,23 @@ void setup(int icmp_sock)
 
 	hold = 1;
 	if (options & F_SO_DEBUG)
-		setsockopt(icmp_sock, SOL_SOCKET, SO_DEBUG, (char *)&hold, sizeof(hold));
+		setsockopt(sock->fd, SOL_SOCKET, SO_DEBUG, (char *)&hold, sizeof(hold));
 	if (options & F_SO_DONTROUTE)
-		setsockopt(icmp_sock, SOL_SOCKET, SO_DONTROUTE, (char *)&hold, sizeof(hold));
+		setsockopt(sock->fd, SOL_SOCKET, SO_DONTROUTE, (char *)&hold, sizeof(hold));
 
 #ifdef SO_TIMESTAMP
 	if (!(options&F_LATENCY)) {
 		int on = 1;
-		if (setsockopt(icmp_sock, SOL_SOCKET, SO_TIMESTAMP, &on, sizeof(on)))
+		if (setsockopt(sock->fd, SOL_SOCKET, SO_TIMESTAMP, &on, sizeof(on)))
 			fprintf(stderr, "Warning: no SO_TIMESTAMP support, falling back to SIOCGSTAMP\n");
 	}
 #endif
+#ifdef SO_MARK
 	if (options & F_MARK) {
 		int ret;
 
 		enable_capability_admin();
-		ret = setsockopt(icmp_sock, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+		ret = setsockopt(sock->fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
 		disable_capability_admin();
 
 		if (ret == -1) {
@@ -644,6 +497,7 @@ void setup(int icmp_sock)
 			fprintf(stderr, "Warning: Failed to set mark %d\n", mark);
 		}
 	}
+#endif
 
 	/* Set some SNDTIMEO to prevent blocking forever
 	 * on sends, when device is too slow or stalls. Just put limit
@@ -655,18 +509,18 @@ void setup(int icmp_sock)
 		tv.tv_sec = 0;
 		tv.tv_usec = 1000 * SCHINT(interval);
 	}
-	setsockopt(icmp_sock, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));
+	setsockopt(sock->fd, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));
 
 	/* Set RCVTIMEO to "interval". Note, it is just an optimization
 	 * allowing to avoid redundant poll(). */
 	tv.tv_sec = SCHINT(interval)/1000;
 	tv.tv_usec = 1000*(SCHINT(interval)%1000);
-	if (setsockopt(icmp_sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv)))
+	if (setsockopt(sock->fd, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv)))
 		options |= F_FLOOD_POLL;
 
 	if (!(options & F_PINGFILLED)) {
 		int i;
-		u_char *p = outpack+8;
+		unsigned char *p = outpack+8;
 
 		/* Do not forget about case of small datalen,
 		 * fill timestamp area too!
@@ -675,7 +529,8 @@ void setup(int icmp_sock)
 			*p++ = i;
 	}
 
-	ident = htons(getpid() & 0xFFFF);
+	if (sock->socktype == SOCK_RAW)
+		ident = htons(getpid() & 0xFFFF);
 
 	set_signal(SIGINT, sigexit);
 	set_signal(SIGALRM, sigexit);
@@ -706,7 +561,7 @@ void setup(int icmp_sock)
 	}
 }
 
-void main_loop(int icmp_sock, __u8 *packet, int packlen)
+void main_loop(ping_func_set_st *fset, socket_st *sock, __u8 *packet, int packlen)
 {
 	char addrbuf[128];
 	char ans_data[4096];
@@ -733,7 +588,7 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen)
 
 		/* Send probes scheduled to this time. */
 		do {
-			next = pinger();
+			next = pinger(fset, sock);
 			next = schedule_exit(next);
 		} while (next <= 0);
 
@@ -772,7 +627,7 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen)
 			if (!polling &&
 			    ((options & (F_ADAPTIVE|F_FLOOD_POLL)) || interval)) {
 				struct pollfd pset;
-				pset.fd = icmp_sock;
+				pset.fd = sock->fd;
 				pset.events = POLLIN|POLLERR;
 				pset.revents = 0;
 				if (poll(&pset, 1, next) < 1 ||
@@ -797,13 +652,13 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen)
 			msg.msg_control = ans_data;
 			msg.msg_controllen = sizeof(ans_data);
 
-			cc = recvmsg(icmp_sock, &msg, polling);
+			cc = recvmsg(sock->fd, &msg, polling);
 			polling = MSG_DONTWAIT;
 
 			if (cc < 0) {
 				if (errno == EAGAIN || errno == EINTR)
 					break;
-				if (!receive_error_msg()) {
+				if (!fset->receive_error_msg(sock)) {
 					if (errno) {
 						perror("ping: recvmsg");
 						break;
@@ -825,17 +680,17 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen)
 
 				if ((options&F_LATENCY) || recv_timep == NULL) {
 					if ((options&F_LATENCY) ||
-					    ioctl(icmp_sock, SIOCGSTAMP, &recv_time))
+					    ioctl(sock->fd, SIOCGSTAMP, &recv_time))
 						gettimeofday(&recv_time, NULL);
 					recv_timep = &recv_time;
 				}
 
-				not_ours = parse_reply(&msg, cc, addrbuf, recv_timep);
+				not_ours = fset->parse_reply(sock, &msg, cc, addrbuf, recv_timep);
 			}
 
 			/* See? ... someone runs another ping on this host. */
-			if (not_ours)
-				install_filter();
+			if (not_ours && sock->socktype == SOCK_RAW)
+				fset->install_filter(sock);
 
 			/* If nothing is in flight, "break" returns us to pinger. */
 			if (in_flight() == 0)
@@ -952,13 +807,13 @@ restamp:
 			printf(" (BAD CHECKSUM!)");
 
 		/* check the data */
-		cp = ((u_char*)ptr) + sizeof(struct timeval);
+		cp = ((unsigned char*)ptr) + sizeof(struct timeval);
 		dp = &outpack[8 + sizeof(struct timeval)];
 		for (i = sizeof(struct timeval); i < datalen; ++i, ++cp, ++dp) {
 			if (*cp != *dp) {
 				printf("\nwrong data byte #%d should be 0x%x but was 0x%x",
 				       i, *dp, *cp);
-				cp = (u_char*)ptr + sizeof(struct timeval);
+				cp = (unsigned char*)ptr + sizeof(struct timeval);
 				for (i = sizeof(struct timeval); i < datalen; ++i, ++cp) {
 					if ((i % 32) == sizeof(struct timeval))
 						printf("\n#%d\t", i);
@@ -1055,7 +910,7 @@ void status(void)
 	if (ntransmitted)
 		loss = (((long long)(ntransmitted - nreceived)) * 100) / ntransmitted;
 
-	fprintf(stderr, "\r%ld/%ld packets, %d%% loss", ntransmitted, nreceived, loss);
+	fprintf(stderr, "\r%ld/%ld packets, %d%% loss", nreceived, ntransmitted, loss);
 
 	if (nreceived && timing) {
 		tavg = tsum / (nreceived + nrepeats);
@@ -1070,3 +925,6 @@ void status(void)
 	fprintf(stderr, "\n");
 }
 
+inline int is_ours(socket_st *sock, uint16_t id) {
+       return sock->socktype == SOCK_DGRAM || id == ident;
+}

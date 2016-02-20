@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <string.h>
 #include <netdb.h>
+#include <limits.h>
 #include <resolv.h>
 #include <sys/time.h>
 #include <sys/uio.h>
@@ -42,6 +43,9 @@
 #define IPV6_PMTUDISC_DO	3
 #endif
 
+#define MAX_HOPS_LIMIT		255
+#define MAX_HOPS_DEFAULT	30
+
 struct hhistory
 {
 	int	hops;
@@ -55,6 +59,7 @@ sa_family_t family = AF_INET6;
 struct sockaddr_storage target;
 socklen_t targetlen;
 __u16 base_port;
+int max_hops = MAX_HOPS_DEFAULT;
 
 int overhead;
 int mtu;
@@ -86,13 +91,10 @@ void data_wait(int fd)
 
 void print_host(const char *a, const char *b, int both)
 {
-	int plen = 0;
-	printf("%s", a);
-	plen = strlen(a);
-	if (both) {
-		printf(" (%s)", b);
-		plen += strlen(b) + 3;
-	}
+	int plen;
+	plen = printf("%s", a);
+	if (both)
+		plen += printf(" (%s)", b);
 	if (plen >= HOST_COLUMN_SIZE)
 		plen = HOST_COLUMN_SIZE - 1;
 	printf("%*s", HOST_COLUMN_SIZE - plen, "");
@@ -260,6 +262,13 @@ restart:
 			printf("(This broken router returned corrupted payload) ");
 	}
 
+	if (rethops<=64)
+		rethops = 65-rethops;
+	else if (rethops<=128)
+		rethops = 129-rethops;
+	else
+		rethops = 256-rethops;
+
 	switch (e->ee_errno) {
 	case ETIMEDOUT:
 		printf("\n");
@@ -285,12 +294,6 @@ restart:
 		     e->ee_type == 3 &&
 		     e->ee_code == 0)) {
 			if (rethops>=0) {
-				if (rethops<=64)
-					rethops = 65-rethops;
-				else if (rethops<=128)
-					rethops = 129-rethops;
-				else
-					rethops = 256-rethops;
 				if (sndhops>=0 && rethops != sndhops)
 					printf("asymm %2d ", rethops);
 				else if (sndhops<0 && rethops != ttl)
@@ -378,16 +381,24 @@ int main(int argc, char **argv)
 	int on;
 	int ttl;
 	char *p;
-	struct addrinfo hints, *ai, *ai0;
+	struct addrinfo hints = {
+		.ai_family = family,
+		.ai_socktype = SOCK_DGRAM,
+		.ai_protocol = IPPROTO_UDP,
+#ifdef USE_IDN
+		.ai_flags = AI_IDN | AI_CANONNAME,
+#endif
+	};
+	struct addrinfo *ai, *result;
 	int ch;
-	int gai;
+	int status;
 	char pbuf[NI_MAXSERV];
 
 #ifdef USE_IDN
 	setlocale(LC_ALL, "");
 #endif
 
-	while ((ch = getopt(argc, argv, "nbh?l:p:")) != EOF) {
+	while ((ch = getopt(argc, argv, "nbh?l:m:p:")) != EOF) {
 		switch(ch) {
 		case 'n':
 			no_resolve = 1;
@@ -397,6 +408,14 @@ int main(int argc, char **argv)
 			break;
 		case 'l':
 			mtu = atoi(optarg);
+			break;
+		case 'm':
+			max_hops = atoi(optarg);
+			if (max_hops < 0 || max_hops > MAX_HOPS_LIMIT) {
+				fprintf(stderr,
+					"Error: max hops must be 0 .. %d (inclusive).\n",
+					MAX_HOPS_LIMIT);
+			}
 			break;
 		case 'p':
 			base_port = atoi(optarg);
@@ -424,21 +443,14 @@ int main(int argc, char **argv)
 	}
 	sprintf(pbuf, "%u", base_port);
 
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = family;
-	hints.ai_socktype = SOCK_DGRAM;
-	hints.ai_protocol = IPPROTO_UDP;
-#ifdef USE_IDN
-	hints.ai_flags = AI_IDN;
-#endif
-	gai = getaddrinfo(argv[0], pbuf, &hints, &ai0);
-	if (gai) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai));
+	status = getaddrinfo(argv[0], pbuf, &hints, &result);
+	if (status) {
+		fprintf(stderr, "tracepath6: %s: %s\n", argv[0], gai_strerror(status));
 		exit(1);
 	}
 
 	fd = -1;
-	for (ai = ai0; ai; ai = ai->ai_next) {
+	for (ai = result; ai; ai = ai->ai_next) {
 		/* sanity check */
 		if (family && ai->ai_family != family)
 			continue;
@@ -457,7 +469,7 @@ int main(int argc, char **argv)
 		perror("socket/connect");
 		exit(1);
 	}
-	freeaddrinfo(ai0);
+	freeaddrinfo(result);
 
 	switch (family) {
 	case AF_INET6:
@@ -523,7 +535,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	for (ttl=1; ttl<32; ttl++) {
+	for (ttl = 1; ttl <= max_hops; ttl++) {
 		int res;
 		int i;
 

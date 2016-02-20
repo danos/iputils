@@ -18,19 +18,28 @@
 #include <errno.h>
 #include <string.h>
 #include <netdb.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <resolv.h>
 #include <sys/time.h>
 #include <sys/uio.h>
 #include <arpa/inet.h>
+
 #ifdef USE_IDN
 #include <idna.h>
 #include <locale.h>
+
+#define getnameinfo_flags	NI_IDN
+#else
+#define getnameinfo_flags	0
 #endif
 
 #ifndef IP_PMTUDISC_PROBE
 #define IP_PMTUDISC_PROBE	3
 #endif
+
+#define MAX_HOPS_LIMIT		255
+#define MAX_HOPS_DEFAULT	30
 
 struct hhistory
 {
@@ -43,6 +52,7 @@ int hisptr;
 
 struct sockaddr_in target;
 __u16 base_port;
+int max_hops = MAX_HOPS_DEFAULT;
 
 const int overhead = 28;
 int mtu = 65535;
@@ -73,13 +83,10 @@ void data_wait(int fd)
 
 void print_host(const char *a, const char *b, int both)
 {
-	int plen = 0;
-	printf("%s", a);
-	plen = strlen(a);
-	if (both) {
-		printf(" (%s)", b);
-		plen += strlen(b) + 3;
-	}
+	int plen;
+	plen = printf("%s", a);
+	if (both)
+		plen += printf(" (%s)", b);
 	if (plen >= HOST_COLUMN_SIZE)
 		plen = HOST_COLUMN_SIZE - 1;
 	printf("%*s", HOST_COLUMN_SIZE - plen, "");
@@ -102,6 +109,7 @@ int recverr(int fd, int ttl)
 	int sndhops;
 	int progress = -1;
 	int broken_router;
+	char hnamebuf[NI_MAXHOST] = "";
 
 restart:
 	memset(&rcvbuf, -1, sizeof(rcvbuf));
@@ -165,8 +173,6 @@ restart:
 	} else if (e->ee_origin == SO_EE_ORIGIN_ICMP) {
 		char abuf[128];
 		struct sockaddr_in *sin = (struct sockaddr_in*)(e+1);
-		struct hostent *h = NULL;
-		char *idn = NULL;
 
 		inet_ntop(AF_INET, &sin->sin_addr, abuf, sizeof(abuf));
 
@@ -177,21 +183,13 @@ restart:
 
 		if (!no_resolve || show_both) {
 			fflush(stdout);
-			h = gethostbyaddr((char *) &sin->sin_addr, sizeof(sin->sin_addr), AF_INET);
+			getnameinfo((struct sockaddr *) sin, sizeof *sin, hnamebuf, sizeof hnamebuf, NULL, 0, getnameinfo_flags);
 		}
 
-#ifdef USE_IDN
-		if (h && idna_to_unicode_lzlz(h->h_name, &idn, 0) != IDNA_SUCCESS)
-			idn = NULL;
-#endif
 		if (no_resolve)
-			print_host(abuf, h ? (idn ? idn : h->h_name) : abuf, show_both);
+			print_host(abuf, hnamebuf, show_both);
 		else
-			print_host(h ? (idn ? idn : h->h_name) : abuf, abuf, show_both);
-
-#ifdef USE_IDN
-		free(idn);
-#endif
+			print_host(hnamebuf, abuf, show_both);
 	}
 
 	if (rettv) {
@@ -200,6 +198,13 @@ restart:
 		if (broken_router)
 			printf("(This broken router returned corrupted payload) ");
 	}
+
+	if (rethops<=64)
+		rethops = 65-rethops;
+	else if (rethops<=128)
+		rethops = 129-rethops;
+	else
+		rethops = 256-rethops;
 
 	switch (e->ee_errno) {
 	case ETIMEDOUT:
@@ -223,12 +228,6 @@ restart:
 		    e->ee_type == 11 &&
 		    e->ee_code == 0) {
 			if (rethops>=0) {
-				if (rethops<=64)
-					rethops = 65-rethops;
-				else if (rethops<=128)
-					rethops = 129-rethops;
-				else
-					rethops = 256-rethops;
 				if (sndhops>=0 && rethops != sndhops)
 					printf("asymm %2d ", rethops);
 				else if (sndhops<0 && rethops != ttl)
@@ -304,18 +303,22 @@ static void usage(void)
 int
 main(int argc, char **argv)
 {
-	struct hostent *he;
+	struct addrinfo hints = {
+		.ai_family = AF_INET,
+		.ai_socktype = SOCK_RAW,
+#ifdef USE_IDN
+		.ai_flags = AI_IDN | AI_CANONIDN,
+#endif
+	};
+	struct addrinfo *ai;
+	int status;
 	int fd;
 	int on;
 	int ttl;
 	char *p;
 	int ch;
-#ifdef USE_IDN
-	int rc;
-	setlocale(LC_ALL, "");
-#endif
 
-	while ((ch = getopt(argc, argv, "nbh?l:p:")) != EOF) {
+	while ((ch = getopt(argc, argv, "nbh?l:m:p:")) != EOF) {
 		switch(ch) {
 		case 'n':
 			no_resolve = 1;
@@ -328,6 +331,14 @@ main(int argc, char **argv)
 				fprintf(stderr, "Error: pktlen must be > %d and <= %d.\n",
 					overhead, INT_MAX);
 				exit(1);
+			}
+			break;
+		case 'm':
+			max_hops = atoi(optarg);
+			if (max_hops < 0 || max_hops > MAX_HOPS_LIMIT) {
+				fprintf(stderr,
+					"Error: max hops must be 0 .. %d (inclusive).\n",
+					MAX_HOPS_LIMIT);
 			}
 			break;
 		case 'p':
@@ -361,26 +372,14 @@ main(int argc, char **argv)
 			base_port = 44444;
 	}
 
-	p = argv[0];
-#ifdef USE_IDN
-	rc = idna_to_ascii_lz(argv[0], &p, 0);
-	if (rc != IDNA_SUCCESS) {
-		fprintf(stderr, "IDNA encoding failed: %s\n", idna_strerror(rc));
-		exit(2);
-	}
-#endif
-
-	he = gethostbyname(p);
-	if (he == NULL) {
-		herror("gethostbyname");
+	status = getaddrinfo(argv[0], NULL, &hints, &ai);
+	if (status) {
+		fprintf(stderr, "tracepath: %s: %s\n", argv[0], gai_strerror(status));
 		exit(1);
 	}
 
-#ifdef USE_IDN
-	free(p);
-#endif
-
-	memcpy(&target.sin_addr, he->h_addr, 4);
+	memcpy(&target.sin_addr, &((struct sockaddr_in *) ai->ai_addr)->sin_addr, sizeof target.sin_addr);
+	freeaddrinfo(ai);
 
 	on = IP_PMTUDISC_PROBE;
 	if (setsockopt(fd, SOL_IP, IP_MTU_DISCOVER, &on, sizeof(on)) &&
@@ -405,7 +404,7 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	for (ttl=1; ttl<32; ttl++) {
+	for (ttl = 1; ttl <= max_hops; ttl++) {
 		int res;
 		int i;
 

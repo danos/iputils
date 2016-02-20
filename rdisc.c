@@ -37,6 +37,7 @@
 
 #include <sys/param.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <sys/file.h>
 #include <malloc.h>
 
@@ -114,15 +115,15 @@ static void init(void);
 
 #define MAXIFS 32
 
-#if !defined(__GLIBC__) || __GLIBC__ < 2
+#if defined(__GLIBC__) && __GLIBC__ < 2
 /* For router advertisement */
 struct icmp_ra
 {
-	u_char	icmp_type;		/* type of message, see below */
-	u_char	icmp_code;		/* type sub code */
-	u_short	icmp_cksum;		/* ones complement cksum of struct */
-	u_char	icmp_num_addrs;
-	u_char	icmp_wpa;		/* Words per address */
+	unsigned char	icmp_type;		/* type of message, see below */
+	unsigned char	icmp_code;		/* type sub code */
+	unsigned short	icmp_cksum;		/* ones complement cksum of struct */
+	unsigned char	icmp_num_addrs;
+	unsigned char	icmp_wpa;		/* Words per address */
 	short 	icmp_lifetime;
 };
 
@@ -207,7 +208,7 @@ static void graceful_finish(void);
 static void finish(void);
 static void timer(void);
 static void initifs(void);
-static u_short in_cksum(u_short *addr, int len);
+static unsigned short in_cksum(unsigned short *addr, int len);
 
 static int logging = 0;
 
@@ -459,7 +460,7 @@ next:
 	timer();	/* start things going */
 
 	for (;;) {
-		u_char	packet[MAXPACKET];
+		unsigned char	packet[MAXPACKET];
 		int len = sizeof (packet);
 		socklen_t fromlen = sizeof (from);
 		int cc;
@@ -539,7 +540,7 @@ void timer()
 void
 solicitor(struct sockaddr_in *sin)
 {
-	static u_char outpack[MAXPACKET];
+	static unsigned char outpack[MAXPACKET];
 	struct icmphdr *icp = (struct icmphdr *) ALLIGN(outpack);
 	int packetlen, i;
 
@@ -554,7 +555,7 @@ solicitor(struct sockaddr_in *sin)
 	packetlen = 8;
 
 	/* Compute ICMP checksum here */
-	icp->checksum = in_cksum( (u_short *)icp, packetlen );
+	icp->checksum = in_cksum( (unsigned short *)icp, packetlen );
 
 	if (isbroadcast(sin))
 		i = sendbcast(s, (char *)outpack, packetlen);
@@ -583,7 +584,7 @@ solicitor(struct sockaddr_in *sin)
 void
 advertise(struct sockaddr_in *sin, int lft)
 {
-	static u_char outpack[MAXPACKET];
+	static unsigned char outpack[MAXPACKET];
 	struct icmp_ra *rap = (struct icmp_ra *) ALLIGN(outpack);
 	struct icmp_ra_addr *ap;
 	int packetlen, i, cc;
@@ -614,7 +615,7 @@ advertise(struct sockaddr_in *sin, int lft)
 		rap->icmp_num_addrs++;
 
 		/* Compute ICMP checksum here */
-		rap->icmp_cksum = in_cksum( (u_short *)rap, packetlen );
+		rap->icmp_cksum = in_cksum( (unsigned short *)rap, packetlen );
 
 		if (isbroadcast(sin))
 			cc = sendbcastif(s, (char *)outpack, packetlen,
@@ -698,13 +699,12 @@ pr_type(int t)
  */
 char *pr_name(struct in_addr addr)
 {
-	struct hostent *phe;
+	struct sockaddr_in sin = { .sin_family = AF_INET, .sin_addr = addr };
+	char hnamebuf[NI_MAXHOST] = "";
 	static char buf[80];
 
-	phe = gethostbyaddr((char *)&addr.s_addr, 4, AF_INET);
-	if (phe == NULL)
-		return( inet_ntoa(addr));
-	snprintf(buf, sizeof(buf), "%s (%s)", phe->h_name, inet_ntoa(addr));
+	getnameinfo((struct sockaddr *) &sin, sizeof sin, hnamebuf, sizeof hnamebuf, NULL, 0, 0);
+	snprintf(buf, sizeof buf, "%s (%s)", hnamebuf, inet_ntoa(addr));
 	return(buf);
 }
 
@@ -748,7 +748,7 @@ pr_pack(char *buf, int cc, struct sockaddr_in *from)
 
 		/* TBD verify that the link is multicast or broadcast */
 		/* XXX Find out the link it came in over? */
-		if (in_cksum((u_short *)ALLIGN(buf+hlen), cc)) {
+		if (in_cksum((unsigned short *)ALLIGN(buf+hlen), cc)) {
 			if (verbose)
 				logtrace("ICMP %s from %s: Bad checksum\n",
 					 pr_type((int)rap->icmp_type),
@@ -837,7 +837,7 @@ pr_pack(char *buf, int cc, struct sockaddr_in *from)
 		/* TBD verify that the link is multicast or broadcast */
 		/* XXX Find out the link it came in over? */
 
-		if (in_cksum((u_short *)ALLIGN(buf+hlen), cc)) {
+		if (in_cksum((unsigned short *)ALLIGN(buf+hlen), cc)) {
 			if (verbose)
 				logtrace("ICMP %s from %s: Bad checksum\n",
 					      pr_type((int)icp->type),
@@ -913,16 +913,16 @@ pr_pack(char *buf, int cc, struct sockaddr_in *from)
 #if BYTE_ORDER == LITTLE_ENDIAN
 # define ODDBYTE(v)	(v)
 #elif BYTE_ORDER == BIG_ENDIAN
-# define ODDBYTE(v)	((u_short)(v) << 8)
+# define ODDBYTE(v)	((unsigned short)(v) << 8)
 #else
-# define ODDBYTE(v)	htons((u_short)(v) << 8)
+# define ODDBYTE(v)	htons((unsigned short)(v) << 8)
 #endif
 
-u_short in_cksum(u_short *addr, int len)
+unsigned short in_cksum(unsigned short *addr, int len)
 {
 	register int nleft = len;
-	register u_short *w = addr;
-	register u_short answer;
+	register unsigned short *w = addr;
+	register unsigned short answer;
 	register int sum = 0;
 
 	/*
@@ -938,7 +938,7 @@ u_short in_cksum(u_short *addr, int len)
 
 	/* mop up an odd byte, if necessary */
 	if( nleft == 1 )
-		sum += ODDBYTE(*(u_char *)w);	/* le16toh() may be unavailable on old systems */
+		sum += ODDBYTE(*(unsigned char *)w);	/* le16toh() may be unavailable on old systems */
 
 	/*
 	 * add back carry outs from top 16 bits to low 16 bits
@@ -1128,12 +1128,10 @@ initifs()
 		(void) close(sock);
 		return;
 	}
-	if (interfaces)
-		interfaces = (struct interface *)ALLIGN(realloc((char *)interfaces,
-					 numifs * sizeof(struct interface)));
-	else
-		interfaces = (struct interface *)ALLIGN(malloc(numifs *
-						sizeof(struct interface)));
+	if (interfaces != NULL)
+		(void) free(interfaces);
+	interfaces = (struct interface *)ALLIGN(malloc(numifs *
+					sizeof(struct interface)));
 	if (interfaces == NULL) {
 		logerr("out of memory\n");
 		(void) close(sock);
@@ -1264,7 +1262,7 @@ join(int sock, struct sockaddr_in *sin)
 int support_multicast()
 {
 	int sock;
-	u_char ttl = 1;
+	unsigned char ttl = 1;
 
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock < 0) {

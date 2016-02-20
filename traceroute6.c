@@ -52,13 +52,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-#ifndef lint
-char copyright[] =
-"@(#) Copyright (c) 1990, 1993\n\
-	The Regents of the University of California.  All rights reserved.\n";
-#endif /* not lint */
-
 /*
  * traceroute host  - trace the route ip packets follow going to "host".
  *
@@ -256,6 +249,10 @@ char copyright[] =
 #ifdef USE_IDN
 #include <idna.h>
 #include <locale.h>
+
+#define getnameinfo_flags	NI_IDN
+#else
+#define getnameinfo_flags	0
 #endif
 
 #include <arpa/inet.h>
@@ -274,7 +271,6 @@ char copyright[] =
 #endif
 
 #define	MAXPACKET	65535
-#define MAX_HOSTNAMELEN	NI_MAXHOST
 
 #ifndef FD_SET
 #define NFDBITS         (8*sizeof(fd_set))
@@ -288,10 +284,10 @@ char copyright[] =
 #define Fprintf (void)fprintf
 #define Printf (void)printf
 
-u_char	packet[512];		/* last inbound (icmp) packet */
+unsigned char	packet[512];		/* last inbound (icmp) packet */
 
 int	wait_for_reply(int, struct sockaddr_in6 *, struct in6_addr *, int);
-int	packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from,
+int	packet_ok(unsigned char *buf, int cc, struct sockaddr_in6 *from,
 		  struct in6_addr *to, int seq, struct timeval *);
 void	send_probe(int seq, int ttl);
 double	deltaT (struct timeval *, struct timeval *);
@@ -314,7 +310,7 @@ char *hostname;
 int nprobes = 3;
 int max_ttl = 30;
 pid_t ident;
-u_short port = 32768+666;	/* start udp dest port # for probe packets */
+unsigned short port = 32768+666;	/* start udp dest port # for probe packets */
 int options;			/* socket options */
 int verbose;
 int waittime = 5;		/* time to wait for response (in seconds) */
@@ -335,10 +331,12 @@ int datalen = sizeof(struct pkt_format);
 
 int main(int argc, char *argv[])
 {
-	char pa[MAX_HOSTNAMELEN];
+	char pa[NI_MAXHOST];
 	extern char *optarg;
 	extern int optind;
-	struct hostent *hp;
+	struct addrinfo hints6 = { .ai_family = AF_INET6, .ai_socktype = SOCK_RAW, .ai_flags = AI_CANONNAME };
+	struct addrinfo *result;
+	int status;
 	struct sockaddr_in6 from, *to;
 	int ch, i, on, probe, seq, tos, ttl;
 	int socket_errno;
@@ -455,15 +453,16 @@ int main(int argc, char *argv[])
 		if (idna_to_ascii_lz(*argv, &idn, 0) != IDNA_SUCCESS)
 			idn = NULL;
 #endif
-		hp = gethostbyname2(idn ? idn : *argv, AF_INET6);
-		if (hp) {
-			memmove((caddr_t)&to->sin6_addr, hp->h_addr, sizeof(to->sin6_addr));
-			hostname = (char *)hp->h_name;
-		} else {
+		status = getaddrinfo(idn ? idn : *argv, NULL, &hints6, &result);
+		if (status) {
 			(void)fprintf(stderr,
-			    "traceroute: unknown host %s\n", *argv);
+			    "traceroute: %s: %s\n", *argv, gai_strerror(status));
 			exit(1);
 		}
+
+		memcpy(to, result->ai_addr, sizeof *to);
+		hostname = result->ai_canonname;
+		freeaddrinfo(result);
 	}
 	firsthop = *to;
 	if (*++argv) {
@@ -821,12 +820,12 @@ char * pr_type(unsigned char t)
 }
 
 
-int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from,
+int packet_ok(unsigned char *buf, int cc, struct sockaddr_in6 *from,
 	      struct in6_addr *to, int seq,
 	      struct timeval *tv)
 {
 	struct icmp6_hdr *icp;
-	u_char type, code;
+	unsigned char type, code;
 
 	icp = (struct icmp6_hdr *) buf;
 
@@ -866,8 +865,8 @@ int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from,
 
 	if (verbose) {
 		unsigned char *p;
-		char pa1[MAX_HOSTNAMELEN];
-		char pa2[MAX_HOSTNAMELEN];
+		char pa1[NI_MAXHOST];
+		char pa2[NI_MAXHOST];
 		int i;
 
 		p = (unsigned char *) (icp + 1);
@@ -898,30 +897,17 @@ int packet_ok(u_char *buf, int cc, struct sockaddr_in6 *from,
 
 void print(unsigned char *buf, int cc, struct sockaddr_in6 *from)
 {
-	char pa[MAX_HOSTNAMELEN];
+	char pa[NI_MAXHOST] = "";
+	char hnamebuf[NI_MAXHOST] = "";
 
 	if (nflag)
 		Printf(" %s", inet_ntop(AF_INET6, &from->sin6_addr,
 					pa, sizeof(pa)));
-	else
-	{
-		const char *hostname;
-		struct hostent *hp;
-		char *s = NULL;
+	else {
+		inet_ntop(AF_INET6, &from->sin6_addr, pa, sizeof(pa));
+		getnameinfo((struct sockaddr *) from, sizeof *from, hnamebuf, sizeof hnamebuf, NULL, 0, getnameinfo_flags);
 
-		hostname = inet_ntop(AF_INET6, &from->sin6_addr, pa, sizeof(pa));
-
-		if ((hp = gethostbyaddr((char *)&from->sin6_addr,
-					sizeof(from->sin6_addr), AF_INET6))) {
-#ifdef USE_IDN
-			if (idna_to_unicode_lzlz(hp->h_name, &s, 0) != IDNA_SUCCESS)
-				s = NULL;
-#endif
-		}
-
-		Printf(" %s (%s)", hp ? (s ? s : hp->h_name) : hostname, pa);
-
-		free(s);
+		Printf(" %s (%s)", hnamebuf[0] ? hnamebuf : pa, pa);
 	}
 }
 

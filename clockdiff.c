@@ -14,7 +14,6 @@
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #define TSPTYPES
-#include <protocols/timed.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -45,11 +44,11 @@ void usage(void) __attribute__((noreturn));
 	} \
 }
 
-int in_cksum(u_short *addr, int len)
+int in_cksum(unsigned short *addr, int len)
 {
 	union word {
 		char	c[2];
-		u_short	s;
+		unsigned short	s;
 	} u;
 	int sum = 0;
 
@@ -72,7 +71,7 @@ int in_cksum(u_short *addr, int len)
 			/*
 			 * Odd number of bytes.
 			 */
-			u.c[0] = *(u_char *)addr;
+			u.c[0] = *(unsigned char *)addr;
 	}
 	if (len == -1) {
 		/* The last mbuf has odd # of bytes. Follow the
@@ -113,7 +112,7 @@ int ip_opt_len = 0;
 
 int measure_delta;
 int measure_delta1;
-static u_short seqno, seqno0, acked;
+static unsigned short seqno, seqno0, acked;
 long rtt = 1000;
 long min_rtt;
 long rtt_sigma = 0;
@@ -133,7 +132,7 @@ measure(struct sockaddr_in * addr)
 	long min1, min2, diff;
 	long delta1, delta2;
 	struct timeval tv1, tout;
-	u_char packet[PACKET_IN], opacket[64];
+	unsigned char packet[PACKET_IN], opacket[64];
 	struct icmphdr *icp = (struct icmphdr *) packet;
 	struct icmphdr *oicp = (struct icmphdr *) opacket;
 	struct iphdr *ip = (struct iphdr *) packet;
@@ -195,7 +194,7 @@ empty:
 		(void)gettimeofday (&tv1, (struct timezone *)0);
 		*(__u32*)(oicp+1) = htonl((tv1.tv_sec % (24*60*60)) * 1000
 					  + tv1.tv_usec / 1000);
-		oicp->checksum = in_cksum((u_short *)oicp, sizeof(*oicp) + 12);
+		oicp->checksum = in_cksum((unsigned short *)oicp, sizeof(*oicp) + 12);
 
 		count = sendto(sock_raw, (char *)opacket, sizeof(*oicp)+12, 0,
 			       (struct sockaddr *)addr, sizeof(struct sockaddr_in));
@@ -310,7 +309,7 @@ measure_opt(struct sockaddr_in * addr)
 	long min1, min2, diff;
 	long delta1, delta2;
 	struct timeval tv1, tout;
-	u_char packet[PACKET_IN], opacket[64];
+	unsigned char packet[PACKET_IN], opacket[64];
 	struct icmphdr *icp = (struct icmphdr *) packet;
 	struct icmphdr *oicp = (struct icmphdr *) opacket;
 	struct iphdr *ip = (struct iphdr *) packet;
@@ -373,7 +372,7 @@ empty:
 		gettimeofday (&tv1, NULL);
 		((__u32*)(oicp+1))[0] = htonl((tv1.tv_sec % (24*60*60)) * 1000
 					      + tv1.tv_usec / 1000);
-		oicp->checksum = in_cksum((u_short *)oicp, sizeof(*oicp)+12);
+		oicp->checksum = in_cksum((unsigned short *)oicp, sizeof(*oicp)+12);
 
 		count = sendto(sock_raw, (char *)opacket, sizeof(*oicp)+12, 0,
 			       (struct sockaddr *)addr, sizeof(struct sockaddr_in));
@@ -551,7 +550,9 @@ int
 main(int argc, char *argv[])
 {
 	int measure_status;
-	struct hostent * hp;
+	struct addrinfo hints = { .ai_family = AF_INET, .ai_socktype = SOCK_RAW, .ai_flags = AI_CANONNAME };
+	struct addrinfo *result;
+	int status;
 	char hostname[MAX_HOSTNAMELEN];
 	int s_errno = 0;
 	int n_errno = 0;
@@ -599,23 +600,23 @@ main(int argc, char *argv[])
 	id = getpid();
 
 	(void)gethostname(hostname,sizeof(hostname));
-	hp = gethostbyname(hostname);
-	if (hp == NULL) {
-		fprintf(stderr, "clockdiff: %s: my host not found\n", hostname);
+	status = getaddrinfo(hostname, NULL, &hints, &result);
+	if (status) {
+		fprintf(stderr, "clockdiff: %s: %s\n", hostname, gai_strerror(status));
+		exit(2);
+	}
+	myname = strdup(result->ai_canonname);
+	freeaddrinfo(result);
+
+	status = getaddrinfo(argv[1], NULL, &hints, &result);
+	if (status) {
+		fprintf(stderr, "clockdiff: %s: %s\n", argv[1], gai_strerror(status));
 		exit(1);
 	}
-	myname = strdup(hp->h_name);
+	hisname = strdup(result->ai_canonname);
 
-	hp = gethostbyname(argv[1]);
-	if (hp == NULL) {
-		fprintf(stderr, "clockdiff: %s: host not found\n", argv[1]);
-		exit(1);
-	}
-	hisname = strdup(hp->h_name);
-
-	memset(&server, 0, sizeof(server));
-	server.sin_family = hp->h_addrtype;
-	memcpy(&(server.sin_addr.s_addr), hp->h_addr, 4);
+	memcpy(&server, result->ai_addr, sizeof server);
+	freeaddrinfo(result);
 
 	if (connect(sock_raw, (struct sockaddr*)&server, sizeof(server)) == -1) {
 		perror("connect");

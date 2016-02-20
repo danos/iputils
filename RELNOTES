@@ -1,3 +1,150 @@
+[s20150815]
+
+Aaro Koskinen (1):
+      use syntax compatible with busybox date in Makefile
+
+David Heidelberg (1):
+      Makefile: use #define as in previous code changes
+
+David McMackins II (1):
+      ping: status() now returns received/transmitted instead of trans/recv
+
+Felix Janda (1):
+      ping: don't mess with internals of struct msghdr
+
+Jan Synacek (1):
+      tracepath,doc: fix corrupted tag
+
+Nikos Mavrogiannopoulos (10):
+      made ping functions protocol independent
+      Allow ping to use IPv6 addresses
+      if IPv4 resolving fails fallback to ping6
+      ping: in usage print the 'ping -6' options as well
+      ping: allow option -4 which forces IPv4
+      combine sock and errno into a single structure
+      This patch allows running ping and ping6 without root privileges on
+      use better names for socket variables
+      travis.yml: install nettle-dev
+      Allow using nettle instead of libgcrypt for MD5
+
+Pavel Šimerda (12):
+      avoid compiler warning caused by snapshot.h
+      make `getaddrinfo()` and `getnameinfo()` usage consistent
+      enable IDN by default
+      ping: perform dual-stack ping by default
+      remove IPV4_TARGETS and IPV6_TARGETS
+      ping: remove obsolete preprocessor directives
+      ping: avoid name clashes between IPv4 and IPv6 code
+      ping: merge all ping header files into a single one
+      ping: merge `ping6` command into `ping`
+      ping: refactor ping options
+      ping: refactor ping socket code
+      ping: merge IPv4 and IPv6 `pr_addr()`
+
+Peter Dave Hello (1):
+      Use svg instead of png to get better image quality
+
+Salvatore Mesoraca (1):
+      iputils ping/ping6: Add a function to check if a packet is ours
+
+YOSHIFUJI Hideaki (9):
+      ping: Add <linux/types.h> to fix compilation error.
+      ping6: Use GNUTLS API directly for MD5. (v2)
+      ping6: Use libgcrypt instead of gnutls for MD5.
+      ninfod: Regenerate configure by autoconf-2.69.
+      ninfod: libgcrypt support.
+      spec: Configure before building ninfod.
+      spec: Fix date in %changelog.
+      make,spec: Add rpm target.
+      ping,ping6 doc: More description on CAP_NET_RAW usage.
+
+
+[s20140519]
+
+David Gibson (3):
+      arping: Avoid confusing local names
+      arping: Use monotonic clock for timeouts
+      arping: Clarify and correct interaction of -c and -w options
+
+David Heidelberger (3):
+      rdisc: ifdef only apply on historic glibc < 2
+      get rid of unused lint and copyright array
+      cleanup, get rid of if(1), #if 0 and constify on
+
+Jan Synacek (3):
+      ninfod: Fix more unused variables.
+      arping: fix arping hang if SIGALRM is blocked
+      ping_common.c: fix message flood when EPERM is encountered in ping
+
+
+[s20140420]
+
+David Heidelberger (1):
+      improve autobuild bot configuration
+
+Mike Frysinger (5):
+      improve gitignore
+      doc: fix parallel build of html/man pages
+      ping6: allow disabling of openssl support
+      fix handling of CFLAGS
+      tftpd: check return value of set*id calls
+
+
+[s20140419]
+
+Arjan van de Ven (1):
+      ping6: Fix build command line argument with gnutls.
+
+Bjørn Mork (1):
+      tracepath: return correct number of hops
+
+Christophe Le Roy (1):
+      ping: flush stdout when a truncated response is received
+
+David Fries (1):
+      Only emit an audible ping when requested (including flooding).
+
+David Heidelberger (13):
+      add missing limits.h
+      in case that HZ is undefined, define it
+      fix include paths, now compile with both glibc and musl
+      protocol/timed.h is no longer required
+      fix ifdef to apply only on uclibc and old glibc
+      replace non-POSIX compilant caddr_t with char *
+      replace u_TYPE with compilant unsigned TYPE
+      add .gitignore and .travis.yml
+      ping_common.c: fix typo
+      fix tracepath docs
+      Makefile: set CC only if it's not defined before
+      add README.md
+      .travis.yml, improve build testing
+
+Hendrik Lönngren (1):
+      arping: return immediately
+
+Jan Synacek (1):
+      ping doc: Fix typo.
+
+Jeremie Koenig (1):
+      replace gethostbyname with gethostbyname2
+
+Matija Nalis (1):
+      Disable DNS-lookup on every ping
+
+Mike Frysinger (1):
+      tracepath, tracepath6: re-use printf return in print_host
+
+Noah Meyerhans (1):
+      remove bogus check required for < 2.4.9 kernels
+
+YOSHIFUJI Hideaki (5):
+      rdisc: Fix memory leakage in initifs() in error path.
+      ninfod: Clean up signal/logfile handling
+      ninfod: Open pidfile exclusively for write.
+      ping, ping6: fix building with older linux headers that don't define SO_MARK
+      tracepath, tracepath6: Support -m (maximum hops) option.
+
+
 [s20121221]
 
 YOSHIFUJI Hideaki (14):

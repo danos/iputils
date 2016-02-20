@@ -139,6 +139,7 @@ char *appname;
 static int opt_d = 0;	/* debug */
 static int opt_h = 0;	/* help */
 static char *opt_p = NINFOD_PIDFILE;	/* pidfile */
+static int got_signal = 0;	/* loop unless true */
 int opt_v = 0;		/* verbose */
 static uid_t opt_u;
 
@@ -391,25 +392,70 @@ int ni_send(struct packetcontext *p)
 /* --------- */
 static void sig_handler(int sig)
 {
+	if (!got_signal)
+		DEBUG(LOG_INFO, "singnal(%d) received, quitting.\n", sig);
+	got_signal = 1;
+}
+
+static void setup_sighandlers(void)
+{
+	struct sigaction act;
+	sigset_t smask;
+	sigemptyset(&smask);
+	sigaddset(&smask, SIGHUP);
+	sigaddset(&smask, SIGINT);
+	sigaddset(&smask, SIGQUIT);
+	sigaddset(&smask, SIGTERM);
+
+	memset(&act, 0, sizeof(act));
+	act.sa_handler = sig_handler;
+	act.sa_mask = smask;
+
+	sigaction(SIGHUP, &act, NULL);
+	sigaction(SIGINT, &act, NULL);
+	sigaction(SIGQUIT, &act, NULL);
+	sigaction(SIGTERM, &act, NULL);
+}
+
+static void set_logfile(void)
+{
+	setbuf(stderr, NULL);
+#if ENABLE_DEBUG
+	openlog(NINFOD, 0, LOG_USER);
+#endif
+}
+
+static void cleanup_pidfile(void)
+{
 	int err;
 
-	DEBUG(LOG_INFO, "singnal(%d) received, quit.\n", sig);
-	err = unlink(opt_p);
-	if (err < 0) {
+	if (daemonized && opt_p) {
+		err = unlink(opt_p);
 		DEBUG(LOG_ERR, "failed to unlink file '%s' : %s\n",
 				opt_p, strerror(errno));
-		exit(1);
 	}
-	/* closelog() */
+}
 
-	exit(0);
+static FILE *fopen_excl(const char *file)
+{
+#ifndef __linux__
+	int fd;
+	FILE *fp;
+
+	fd = open(file, O_CREAT | O_RDWR | O_EXCL,
+		  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	if (fd < 0)
+		return NULL;
+
+	return fdopen(file, "w+");
+#else
+	return fopen(file, "w+x");
+#endif
 }
 
 static void do_daemonize(void)
 {
 	FILE *fp = NULL;
-	struct sigaction act;
-	sigset_t smask;
 	pid_t pid;
 
 	if (opt_p) {
@@ -427,22 +473,7 @@ static void do_daemonize(void)
 			}
 		}
 
-		sigemptyset(&smask);
-		sigaddset(&smask, SIGHUP);
-		sigaddset(&smask, SIGINT);
-		sigaddset(&smask, SIGQUIT);
-		sigaddset(&smask, SIGTERM);
-
-		memset(&act, 0, sizeof(act));
-		act.sa_handler = sig_handler;
-		act.sa_mask = smask;
-
-		sigaction(SIGHUP, &act, NULL);
-		sigaction(SIGINT, &act, NULL);
-		sigaction(SIGQUIT, &act, NULL);
-		sigaction(SIGTERM, &act, NULL);
-
-		fp = fopen(opt_p, "w+");
+		fp = fopen_excl(opt_p);
 		if (!fp) {
 			DEBUG(LOG_ERR, "failed to open file '%s': %s\n",
 			      opt_p, strerror(errno));
@@ -455,9 +486,6 @@ static void do_daemonize(void)
 		unlink(opt_p);
 		exit(1);
 	}
-#if ENABLE_DEBUG
-	openlog(NINFOD, 0, LOG_USER);
-#endif
 	daemonized = 1;
 
 	if (fp) {
@@ -634,8 +662,10 @@ static void print_usage(void) {
 int main (int argc, char **argv)
 {
 	int sock_errno = 0;
+	int ret;
 
 	appname = argv[0];
+	set_logfile();
 
 	limit_capabilities();
 
@@ -659,24 +689,23 @@ int main (int argc, char **argv)
 		exit(1);
 	}
 
-	setbuf(stderr, NULL);
-
-	if (!opt_d)
-		do_daemonize();
-
 	/* initialize */
 	if (init_sock(sock) < 0)
 		exit(1);
 
+	setup_sighandlers();
+	if (!opt_d)
+		do_daemonize();
+
 	init_core(1);
 
 	/* main loop */
-	while(1) {
+	while (!got_signal) {
 		struct packetcontext *p;
 		struct icmp6_hdr *icmph;
 #if ENABLE_DEBUG
 		char saddrbuf[NI_MAXHOST];
-		int gni;
+		int status;
 #endif 
 
 		init_core(0);
@@ -689,11 +718,13 @@ int main (int argc, char **argv)
 			continue;
 		}
 
-		while (1) {
+		while (!got_signal) {
 			memset(p, 0, sizeof(*p));
 			p->sock = sock;
 
 			if (ni_recv(p) < 0) {
+				if (got_signal)
+					break;
 				if (errno == EAGAIN || errno == EINTR)
 					continue;
 				/* XXX: syslog */
@@ -703,12 +734,12 @@ int main (int argc, char **argv)
 		}
 
 #if ENABLE_DEBUG
-		gni = getnameinfo((struct sockaddr *)&p->addr,
+		status = getnameinfo((struct sockaddr *)&p->addr,
 				  p->addrlen,
 				  saddrbuf, sizeof(saddrbuf),
 				  NULL, 0,
 				  NI_NUMERICHOST);
-		if (gni)
+		if (status)
 			sprintf(saddrbuf, "???");
 #endif
 		init_core(0);
@@ -736,5 +767,9 @@ int main (int argc, char **argv)
 
 		pr_nodeinfo(p);	/* this frees p */
 	}
+
+	cleanup_pidfile();
+
+	exit(0);
 }
 

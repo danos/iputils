@@ -2,21 +2,32 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <signal.h>
+#include <poll.h>
 #include <sys/param.h>
 #include <sys/socket.h>
+#include <linux/types.h>
 #include <linux/sockios.h>
 #include <sys/file.h>
 #include <sys/time.h>
-#include <sys/signal.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <sys/uio.h>
-#include <sys/poll.h>
 #include <ctype.h>
 #include <errno.h>
 #include <string.h>
 #include <netdb.h>
 #include <setjmp.h>
+#include <netinet/icmp6.h>
+#include <asm/byteorder.h>
+#include <sched.h>
+#include <math.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
+#include <netinet/ip_icmp.h>
+#include <netinet/icmp6.h>
+#include <linux/filter.h>
+#include <resolv.h>
 
 #ifdef CAPABILITIES
 #include <sys/prctl.h>
@@ -26,6 +37,16 @@
 #ifdef USE_IDN
 #include <locale.h>
 #include <idna.h>
+#include <stringprep.h>
+#define getaddrinfo_flags (AI_CANONNAME | AI_IDN | AI_CANONIDN)
+#define getnameinfo_flags NI_IDN
+#else
+#define getaddrinfo_flags (AI_CANONNAME)
+#define getnameinfo_flags 0
+#endif
+
+#ifndef WITHOUT_IFADDRS
+#include <ifaddrs.h>
 #endif
 
 #include <netinet/in.h>
@@ -33,6 +54,7 @@
 #include <linux/types.h>
 #include <linux/errqueue.h>
 
+#include "in6_flowlabel.h"
 #include "SNAPSHOT.h"
 
 #define	DEFDATALEN	(64 - 8)	/* default data length */
@@ -118,9 +140,6 @@ static inline bitmap_t rcvd_test(__u16 seq)
 	return A(bit) & B(bit);
 }
 
-extern u_char outpack[];
-extern int maxpacket;
-
 extern int datalen;
 extern char *hostname;
 extern int uid;
@@ -144,7 +163,6 @@ extern volatile int exiting;
 extern volatile int status_snapshot;
 extern int confirm;
 extern int confirm_flag;
-extern int working_recverr;
 
 extern volatile int in_pr_addr;		/* pr_addr() is executing */
 extern jmp_buf pr_addr_jmp;
@@ -163,16 +181,6 @@ extern long long tsum2;
 extern int rtt;
 extern __u16 acked;
 extern int pipesize;
-
-#define COMMON_OPTIONS \
-case 'a': case 'U': case 'c': case 'd': \
-case 'f': case 'i': case 'w': case 'l': \
-case 'S': case 'n': case 'p': case 'q': \
-case 'r': case 's': case 'v': case 'L': \
-case 't': case 'A': case 'W': case 'B': case 'm': \
-case 'D': case 'O':
-
-#define COMMON_OPTSTR "h?VQ:I:M:aUc:dfi:w:l:S:np:qrs:vLt:AW:Bm:DO"
 
 /*
  * Write to stdout
@@ -269,15 +277,38 @@ static inline int disable_capability_admin(void)	{ return modify_capability(0); 
 #endif
 extern void drop_capabilities(void);
 
-extern int send_probe(void);
-extern int receive_error_msg(void);
-extern int parse_reply(struct msghdr *msg, int len, void *addr, struct timeval *);
-extern void install_filter(void);
+typedef struct socket_st {
+	int fd;
+	int socktype;
+	/* And this is workaround for bug in IP_RECVERR on raw sockets which is present
+	 * in linux-2.2.[0-19], linux-2.4.[0-7] */
+	int working_recverr;
+} socket_st;
 
-extern int pinger(void);
-extern void sock_setbufs(int icmp_sock, int alloc);
-extern void setup(int icmp_sock);
-extern void main_loop(int icmp_sock, __u8 *buf, int buflen) __attribute__((noreturn));
+char *pr_addr(void *sa, socklen_t salen);
+
+int is_ours(socket_st *sock, uint16_t id);
+
+int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock);
+int ping4_send_probe(socket_st *, void *packet, unsigned packet_size);
+int ping4_receive_error_msg(socket_st *);
+int ping4_parse_reply(socket_st *, struct msghdr *msg, int len, void *addr, struct timeval *);
+void ping4_install_filter(socket_st *);
+
+typedef struct ping_func_set_st {
+	int (*send_probe)(socket_st *, void *packet, unsigned packet_size);
+	int (*receive_error_msg)(socket_st *sock);
+	int (*parse_reply)(socket_st *, struct msghdr *msg, int len, void *addr, struct timeval *);
+	void (*install_filter)(socket_st *);
+} ping_func_set_st;
+
+#define	MAXPACKET	128000		/* max packet size */
+extern ping_func_set_st ping4_func_set;
+
+extern int pinger(ping_func_set_st *fset, socket_st *sock);
+extern void sock_setbufs(socket_st*, int alloc);
+extern void setup(socket_st *);
+extern void main_loop(ping_func_set_st *fset, socket_st*, __u8 *buf, int buflen) __attribute__((noreturn));
 extern void finish(void) __attribute__((noreturn));
 extern void status(void);
 extern void common_options(int ch);
@@ -286,3 +317,76 @@ extern int gather_statistics(__u8 *ptr, int icmplen,
 			     int csfailed, struct timeval *tv, char *from,
 			     void (*pr_reply)(__u8 *ptr, int cc));
 extern void print_timestamp(void);
+void fill(char *patp, void *packet, unsigned packet_size);
+
+extern int mark;
+extern unsigned char outpack[MAXPACKET];
+
+/* IPv6 */
+
+int ping6_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock);
+void ping6_usage(unsigned from_ping);
+
+int ping6_send_probe(socket_st *sockets, void *packet, unsigned packet_size);
+int ping6_receive_error_msg(socket_st *sockets);
+int ping6_parse_reply(socket_st *, struct msghdr *msg, int len, void *addr, struct timeval *);
+void ping6_install_filter(socket_st *sockets);
+
+extern ping_func_set_st ping6_func_set;
+
+int niquery_option_handler(const char *opt_arg);
+int hextoui(const char *str);
+
+extern __u32 tclass;
+extern __u32 flowlabel;
+extern struct sockaddr_in6 source6;
+extern struct sockaddr_in6 whereto6;
+extern struct sockaddr_in6 firsthop6;
+
+/* IPv6 node information query */
+
+#define NI_NONCE_SIZE			8
+
+struct ni_hdr {
+	struct icmp6_hdr		ni_u;
+	__u8				ni_nonce[NI_NONCE_SIZE];
+};
+
+#define ni_type		ni_u.icmp6_type
+#define ni_code		ni_u.icmp6_code
+#define ni_cksum	ni_u.icmp6_cksum
+#define ni_qtype	ni_u.icmp6_data16[0]
+#define ni_flags	ni_u.icmp6_data16[1]
+
+/* Types */
+#ifndef ICMPV6_NI_QUERY
+# define ICMPV6_NI_QUERY		139
+# define ICMPV6_NI_REPLY		140
+#endif
+
+/* Query Codes */
+#define NI_SUBJ_IPV6			0
+#define NI_SUBJ_NAME			1
+#define NI_SUBJ_IPV4			2
+
+/* Reply Codes */
+#define NI_SUCCESS			0
+#define NI_REFUSED			1
+#define NI_UNKNOWN			2
+
+/* Qtypes */
+#define NI_QTYPE_NOOP			0
+#define NI_QTYPE_NAME			2
+#define NI_QTYPE_IPV6ADDR		3
+#define NI_QTYPE_IPV4ADDR		4
+
+/* Flags */
+#define NI_IPV6ADDR_F_TRUNCATE		__constant_cpu_to_be16(0x0001)
+#define NI_IPV6ADDR_F_ALL		__constant_cpu_to_be16(0x0002)
+#define NI_IPV6ADDR_F_COMPAT		__constant_cpu_to_be16(0x0004)
+#define NI_IPV6ADDR_F_LINKLOCAL		__constant_cpu_to_be16(0x0008)
+#define NI_IPV6ADDR_F_SITELOCAL		__constant_cpu_to_be16(0x0010)
+#define NI_IPV6ADDR_F_GLOBAL		__constant_cpu_to_be16(0x0020)
+
+#define NI_IPV4ADDR_F_TRUNCATE		NI_IPV6ADDR_F_TRUNCATE
+#define NI_IPV4ADDR_F_ALL		NI_IPV6ADDR_F_ALL
