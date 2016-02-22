@@ -1,0 +1,12 @@
+iputils (3:20150815-1) unstable; urgency=medium
+
+  As of 3:20150815-1, the ping and ping6 commands are unified in a single
+  binary that can communicate with targets of either address family. In 
+  order to force the use of a specific address family, you need to either 
+  pass the argument -4 or -6 on the command line, or call the program via 
+  one of the ping4 or ping6 names.
+
+  You will need to be particularly aware of this change if you're invoking ping
+  via a script as part of a monitoring or other such automated system.
+
+ -- Noah Meyerhans <noahm@debian.org>  Fri, 19 Feb 2016 22:26:30 -0800

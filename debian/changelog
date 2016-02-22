@@ -1,6 +1,6 @@
 iputils (3:20150815-1) unstable; urgency=medium
 
-  * New upstream release.
+  * New upstream release (Closes: 146162, 219140, 815197)
   * install ping6 and ping4 as symlinks to /bin/ping
   * Bump standards version to 3.9.6 (no changes)
   * Silence output during installation if setcap is successful
