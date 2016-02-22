@@ -5,6 +5,9 @@ iputils (3:20150815-1) unstable; urgency=medium
   * Bump standards version to 3.9.6 (no changes)
   * Silence output during installation if setcap is successful
     (Closes: 737577)
+  * Encode the debian/changelog date rather than the build date in
+    generated documentation in order to support reproducible builds.
+    (Closes: 783219)
 
  -- Noah Meyerhans <noahm@debian.org>  Fri, 19 Feb 2016 20:12:37 -0800
 
