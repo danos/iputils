@@ -9,7 +9,6 @@ if [ "$1" = configure ]; then
 	if command -v setcap > /dev/null; then
 		if setcap cap_net_raw+ep /usr/bin/traceroute6.iputils; then
             chmod u-s /usr/bin/traceroute6.iputils
-			echo "Setcap worked! traceroute6 is not suid!"
 		else
 			echo "Setcap failed on /usr/bin/traceroute6.iputils, falling back to setuid" >&2
 			chmod u+s /usr/bin/traceroute6.iputils
