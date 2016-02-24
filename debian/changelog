@@ -2,7 +2,7 @@ iputils (3:20150815-1) unstable; urgency=medium
 
   * New upstream release (Closes: 146162, 219140, 815197, 732632)
   * install ping6 and ping4 as symlinks to /bin/ping
-  * Bump standards version to 3.9.6 (no changes)
+  * Bump standards version to 3.9.7 (no changes)
   * Silence output during installation if setcap is successful
     (Closes: 737577)
   * Encode the debian/changelog date rather than the build date in
