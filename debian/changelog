@@ -9,7 +9,7 @@ iputils (3:20150815-1) unstable; urgency=medium
     generated documentation in order to support reproducible builds.
     (Closes: 783219)
 
- -- Noah Meyerhans <noahm@debian.org>  Fri, 19 Feb 2016 20:12:37 -0800
+ -- Noah Meyerhans <noahm@debian.org>  Thu, 25 Feb 2016 09:55:01 -0800
 
 iputils (3:20121221-6) UNRELEASED; urgency=medium
 
