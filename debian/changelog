@@ -1,9 +1,9 @@
-iputils (3:20150815-2) UNRELEASED; urgency=medium
+iputils (3:20150815-2) unstable; urgency=medium
 
   * Import upstream's fix to support systems with only one of IPv4 or
     IPv6 enabled. (Closes: 816227)
 
- -- Noah Meyerhans <noahm@debian.org>  Tue, 01 Mar 2016 06:44:32 -0800
+ -- Noah Meyerhans <noahm@debian.org>  Tue, 01 Mar 2016 06:47:28 -0800
 
 iputils (3:20150815-1) unstable; urgency=medium
 
