@@ -1,3 +1,4 @@
 set_buildflags
 upstream-make-requires-bash.patch
 reproducible_timestamps_in_generated_files.patch
+bug816227-upstream.patch
