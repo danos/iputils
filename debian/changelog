@@ -1,8 +1,9 @@
-iputils (3:20161105-1) UNRELEASED; urgency=medium
+iputils (3:20161105-1) unstable; urgency=medium
 
   * New upstream release (Closes: #819204, #825754)
+  * Set debhelper compat level to 9
 
- -- Noah Meyerhans <noahm@debian.org>  Tue, 08 Nov 2016 05:29:21 -0800
+ -- Noah Meyerhans <noahm@debian.org>  Tue, 08 Nov 2016 06:38:43 -0800
 
 iputils (3:20150815-2) unstable; urgency=medium
 
