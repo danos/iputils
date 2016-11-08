@@ -1,3 +1,9 @@
+iputils (3:20161105-1) UNRELEASED; urgency=medium
+
+  * New upstream release (Closes: #819204)
+
+ -- Noah Meyerhans <noahm@debian.org>  Tue, 08 Nov 2016 05:29:21 -0800
+
 iputils (3:20150815-2) unstable; urgency=medium
 
   * Import upstream's fix to support systems with only one of IPv4 or
