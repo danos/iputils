@@ -27,10 +27,7 @@ Priority: optional
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Tools to trace the network path to a remote host
  The tracepath utility is similar to the traceroute utility, but also
- attempts to discover the MTU of the path.
- .
- This package also includes tracepath6 and traceroute6 utilities, which
- may be used on IPv6 networks.
+ attempts to discover the MTU of the path. Supports IPv4 and IPv6.
 
 Package: iputils-arping
 Architecture: any

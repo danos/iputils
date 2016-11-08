@@ -1,9 +1,10 @@
 iputils (3:20161105-1) unstable; urgency=medium
 
-  * New upstream release (Closes: #819204, #825754, #843264)
+  * New upstream release (Closes: #819204, #825754, #843264).
+  * Merge IPv6 support into tracepath, drop tracepath6 binary.
   * Set debhelper compat level to 9
 
- -- Noah Meyerhans <noahm@debian.org>  Tue, 08 Nov 2016 06:38:43 -0800
+ -- Noah Meyerhans <noahm@debian.org>  Tue, 08 Nov 2016 07:00:45 -0800
 
 iputils (3:20150815-2) unstable; urgency=medium
 

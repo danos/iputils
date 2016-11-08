@@ -10,7 +10,7 @@ export DEBIAN_LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
 
-TARGETS=ping tracepath tracepath6 traceroute6 clockdiff arping
+TARGETS=ping tracepath traceroute6 clockdiff arping
 
 configure:
 	dh_testdir
@@ -48,8 +48,6 @@ install: build
 	install -m 4755 -o root -g root traceroute6 \
 		debian/iputils-tracepath/usr/bin/traceroute6.iputils
 	install -m 0755 -o root -g root tracepath \
-		debian/iputils-tracepath/usr/bin/
-	install -m 0755 -o root -g root tracepath6 \
 		debian/iputils-tracepath/usr/bin/
 	install -m 0755 -o root -g root arping debian/iputils-arping/usr/bin/
 	install -m 0755 -o root -g root clockdiff \
@@ -101,7 +99,6 @@ binary-arch: build install
 	chmod 755 debian/iputils-clockdiff/usr/bin/clockdiff
 	ln -sf ping.8.gz debian/iputils-ping/usr/share/man/man8/ping6.8.gz
 	ln -sf ping.8.gz debian/iputils-ping/usr/share/man/man8/ping4.8.gz
-	ln -sf tracepath.8.gz debian/iputils-tracepath/usr/share/man/man8/tracepath6.8.gz
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol
