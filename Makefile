@@ -10,13 +10,14 @@ ADDLIB=
 LDFLAG_STATIC=-Wl,-Bstatic
 LDFLAG_DYNAMIC=-Wl,-Bdynamic
 LDFLAG_CAP=-lcap
-LDFLAG_GCRYPT=-lgcrypt
+LDFLAG_GCRYPT=-lgcrypt -lgpg-error
 LDFLAG_NETTLE=-lnettle
 LDFLAG_CRYPTO=-lcrypto
 LDFLAG_IDN=-lidn
 LDFLAG_RESOLV=-lresolv
 LDFLAG_SYSFS=-lsysfs
 LDFLAG_RT=-lrt
+LDFLAG_M=-lm
 
 #
 # Options
@@ -115,7 +116,7 @@ endif
 endif
 
 # -------------------------------------
-TARGETS=ping tracepath tracepath6 traceroute6 clockdiff rdisc arping tftpd rarpd
+TARGETS=ping tracepath traceroute6 clockdiff rdisc arping tftpd rarpd
 
 LDLIBS=$(LDLIB) $(ADDLIB)
 
@@ -153,10 +154,10 @@ DEF_clockdiff = $(DEF_CAP)
 LIB_clockdiff = $(LIB_CAP)
 
 # ping / ping6
-DEF_ping_common = $(DEF_CAP) $(DEF_IDN)
-DEF_ping6_common = $(DEF_CAP) $(DEF_IDN)
-DEF_ping  = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS)
-LIB_ping  = $(LIB_CAP) $(LIB_IDN) $(LIB_RESOLV)
+DEF_ping = $(DEF_CAP) $(DEF_IDN) $(DEF_CRYPTO) $(DEF_WITHOUT_IFADDRS)
+DEF_ping_common = $(DEF_ping)
+DEF_ping6_common = $(DEF_ping)
+LIB_ping = $(LIB_CAP) $(LIB_IDN) $(LIB_CRYPTO) $(LIB_RESOLV) $(LDFLAG_M)
 
 ping: ping_common.o ping6_common.o
 ping.o ping_common.o ping6_common.o: ping.h in6_flowlabel.h
@@ -173,10 +174,6 @@ LIB_rdisc =
 # tracepath
 DEF_tracepath = $(DEF_IDN)
 LIB_tracepath = $(LIB_IDN)
-
-# tracepath6
-DEF_tracepath6 = $(DEF_IDN)
-LIB_tracepath6 =
 
 # traceroute6
 DEF_traceroute6 = $(DEF_CAP) $(DEF_IDN)

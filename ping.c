@@ -55,6 +55,7 @@
 
 #include "ping.h"
 
+#include <assert.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #ifndef WITHOUT_IFADDRS
@@ -79,8 +80,6 @@ ping_func_set_st ping4_func_set = {
 #define	MAXICMPLEN	76
 #define	NROUTES		9		/* number of record route slots */
 #define TOS_MAX		255		/* 8-bit TOS field */
-
-static const int max_ping4_packet = 0x10000;
 
 static int ts_type;
 static int nroute = 0;
@@ -107,32 +106,84 @@ static struct {
 int cmsg_len;
 
 static struct sockaddr_in source = { .sin_family = AF_INET };
-static char *device;
+char *device;
 static int pmtudisc = -1;
 
-static void create_socket(socket_st *sock, int family, int socktype, int protocol)
+static void create_socket(socket_st *sock, int family, int socktype, int protocol, int requisite)
 {
+	int do_fallback = 0;
+
 	errno = 0;
 
-	sock->fd = socket(family, socktype, protocol);
+	assert(sock->fd == -1);
+	assert(socktype == SOCK_DGRAM || socktype == SOCK_RAW);
 
-	/* Fallback to raw socket when ping socket failed */
-	if (sock->fd == -1 && socktype == SOCK_DGRAM) {
-		if (options & F_VERBOSE)
+	/* Attempt to create a ping socket if requested. Attempt to create a raw
+	 * socket otherwise or as a fallback. Well known errno values follow.
+	 *
+	 * 1) EACCES
+	 *
+	 * Kernel returns EACCES for all ping socket creation attempts when the
+	 * user isn't allowed to use ping socket. A range of group ids is
+	 * configured using the `net.ipv4.ping_group_range` sysctl. Fallback
+	 * to raw socket is necessary.
+	 *
+	 * Kernel returns EACCES for all raw socket creation attempts when the
+	 * proces doesn't have the `CAP_NET_RAW` capability.
+	 *
+	 * 2) EAFNOSUPPORT
+	 *
+	 * Kernel returns EAFNOSUPPORT for IPv6 ping or raw socket creation
+	 * attempts when run with IPv6 support disabled (e.g. via `ipv6.disable=1`
+	 * kernel command-line option.
+	 *
+	 * https://github.com/iputils/iputils/issues/32
+	 *
+	 * OpenVZ 2.6.32-042stab113.11 and possibly other older kernels return
+	 * EAFNOSUPPORT for all IPv4 ping socket creation attempts due to lack
+	 * of support in the kernel. Fallback to raw socket is necessary.
+	 *
+	 * https://github.com/iputils/iputils/issues/54
+	 *
+	 * 3) EPROTONOSUPPORT
+	 *
+	 * OpenVZ 2.6.32-042stab113.11 and possibly other older kernels return
+	 * EPROTONOSUPPORT for all IPv6 ping socket creation attempts due to lack
+	 * of support in the kernel. Fallback to raw socket is necessary.
+	 *
+	 * https://github.com/iputils/iputils/issues/54
+	 *
+	 */
+	if (socktype == SOCK_DGRAM)
+		sock->fd = socket(family, socktype, protocol);
+
+	/* Kernel doesn't support ping sockets. */
+	if (sock->fd == -1 && errno == EAFNOSUPPORT && family == AF_INET)
+		do_fallback = 1;
+	if (sock->fd == -1 && errno == EPROTONOSUPPORT && family == AF_INET6)
+		do_fallback = 1;
+
+	/* User is not allowed to use ping sockets. */
+	if (sock->fd == -1 && errno == EACCES)
+		do_fallback = 1;
+
+	if (socktype == SOCK_RAW || do_fallback) {
+		if (options & F_VERBOSE && do_fallback)
 			fprintf(stderr, "ping: socket: %s, attempting raw socket...\n", strerror(errno));
-		create_socket(sock, family, SOCK_RAW, protocol);
-		return;
+		socktype = SOCK_RAW;
+		sock->fd = socket(family, SOCK_RAW, protocol);
 	}
 
 	if (sock->fd == -1) {
-		if (socktype == SOCK_RAW)
-			fprintf(stderr, "ping: socket: %s (raw socket required by specified options).\n", strerror(errno));
-		else
+		/* Report error related to disabled IPv6 only when IPv6 also failed or in
+		 * verbose mode. Report other errors always.
+		 */
+		if ((errno == EAFNOSUPPORT && socktype == AF_INET6) || options & F_VERBOSE || requisite)
 			fprintf(stderr, "ping: socket: %s\n", strerror(errno));
-		exit(2);
-	}
-
-	sock->socktype = socktype;
+		if (requisite)
+			exit(2);
+	} else
+		sock->socktype = socktype;
 }
 
 static void set_socket_option(socket_st *sock, int level, int optname, const void *optval, socklen_t optlen)
@@ -259,7 +310,13 @@ main(int argc, char **argv)
 			char *ep;
 
 			errno = 0;
+#ifdef USE_IDN
+			setlocale(LC_ALL, "C");
+#endif
 			dbl = strtod(optarg, &ep);
+#ifdef USE_IDN
+			setlocale(LC_ALL, "");
+#endif
 
 			if (errno || *ep != '\0' ||
 				!finite(dbl) || dbl < 0.0 || dbl >= (double)INT_MAX / 1000 - 1.0) {
@@ -273,10 +330,6 @@ main(int argc, char **argv)
 			break;
 		}
 		case 'I':
-			if (inet_pton(AF_INET, optarg, &source.sin_addr) > 0)
-				options |= F_STRICTSOURCE;
-			else
-				device = optarg;
 			/* IPv6 */
 			if (strchr(optarg, ':')) {
 				char *p, *addr = strdup(optarg);
@@ -300,6 +353,8 @@ main(int argc, char **argv)
 				options |= F_STRICTSOURCE;
 
 				free(addr);
+			} else if (inet_pton(AF_INET, optarg, &source.sin_addr) > 0) {
+				options |= F_STRICTSOURCE;
 			} else {
 				device = optarg;
 			}
@@ -442,10 +497,18 @@ main(int argc, char **argv)
 	/* Create sockets */
 	enable_capability_raw();
 	if (hints.ai_family != AF_INET6)
-		create_socket(&sock4, AF_INET, hints.ai_socktype, IPPROTO_ICMP);
+		create_socket(&sock4, AF_INET, hints.ai_socktype, IPPROTO_ICMP, hints.ai_family == AF_INET);
 	if (hints.ai_family != AF_INET)
-		create_socket(&sock6, AF_INET6, hints.ai_socktype, IPPROTO_ICMPV6);
+		create_socket(&sock6, AF_INET6, hints.ai_socktype, IPPROTO_ICMPV6, sock4.fd == -1);
 	disable_capability_raw();
+
+	/* Limit address family on single-protocol systems */
+	if (hints.ai_family == AF_UNSPEC) {
+		if (sock4.fd == -1)
+			hints.ai_family = AF_INET6;
+		else if (sock6.fd == -1)
+			hints.ai_family = AF_INET;
+	}
 
 	/* Set socket options */
 	if (settos)
@@ -489,6 +552,7 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
 	char *target;
 	char hnamebuf[NI_MAXHOST];
 	char rspace[3 + 4 * NROUTES + 1];	/* record route space */
+	__u32 *tmp_rspace;
 
 	if (argc > 1) {
 		if (options & F_RROUTE)
@@ -552,31 +616,36 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
 		}
 		if (device) {
 			struct ifreq ifr;
-			int rc;
+			int i;
+			int fds[2] = {probe_fd, sock->fd};
 
 			memset(&ifr, 0, sizeof(ifr));
 			strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
 
-			enable_capability_raw();
-			rc = setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1);
-			disable_capability_raw();
+			for (i = 0; i < 2; i++) {
+				int fd = fds[i];
+				int rc;
+				enable_capability_raw();
+				rc = setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1);
+				disable_capability_raw();
 
-			if (rc == -1) {
-				if (IN_MULTICAST(ntohl(dst.sin_addr.s_addr))) {
-					struct ip_mreqn imr;
-					if (ioctl(probe_fd, SIOCGIFINDEX, &ifr) < 0) {
-						fprintf(stderr, "ping: unknown iface %s\n", device);
+				if (rc == -1) {
+					if (IN_MULTICAST(ntohl(dst.sin_addr.s_addr))) {
+						struct ip_mreqn imr;
+						if (ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
+							fprintf(stderr, "ping: unknown iface %s\n", device);
+							exit(2);
+						}
+						memset(&imr, 0, sizeof(imr));
+						imr.imr_ifindex = ifr.ifr_ifindex;
+						if (setsockopt(fd, SOL_IP, IP_MULTICAST_IF, &imr, sizeof(imr)) == -1) {
+							perror("ping: IP_MULTICAST_IF");
+							exit(2);
+						}
+					} else {
+						perror("ping: SO_BINDTODEVICE");
 						exit(2);
 					}
-					memset(&imr, 0, sizeof(imr));
-					imr.imr_ifindex = ifr.ifr_ifindex;
-					if (setsockopt(probe_fd, SOL_IP, IP_MULTICAST_IF, &imr, sizeof(imr)) == -1) {
-						perror("ping: IP_MULTICAST_IF");
-						exit(2);
-					}
-				} else {
-					perror("ping: SO_BINDTODEVICE");
-					exit(2);
 				}
 			}
 		}
@@ -591,7 +660,8 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
 		if (connect(probe_fd, (struct sockaddr*)&dst, sizeof(dst)) == -1) {
 			if (errno == EACCES) {
 				if (broadcast_pings == 0) {
-					fprintf(stderr, "Do you want to ping broadcast? Then -b\n");
+					fprintf(stderr,
+						"Do you want to ping broadcast? Then -b. If not, check your local firewall rules.\n");
 					exit(2);
 				}
 				fprintf(stderr, "WARNING: pinging broadcast address\n");
@@ -731,8 +801,10 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
 		if (ts_type == IPOPT_TS_PRESPEC) {
 			int i;
 			rspace[1] = 4+nroute*8;
-			for (i=0; i<nroute; i++)
-				*(__u32*)&rspace[4+i*8] = route[i];
+			for (i = 0; i < nroute; i++) {
+				tmp_rspace = (__u32*)&rspace[4+i*8];
+				*tmp_rspace = route[i];
+			}
 		}
 		if (setsockopt(sock->fd, IPPROTO_IP, IP_OPTIONS, rspace, rspace[1]) < 0) {
 			rspace[3] = 2;
@@ -751,8 +823,10 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
 			: IPOPT_LSRR;
 		rspace[1+IPOPT_OLEN] = 3 + nroute*4;
 		rspace[1+IPOPT_OFFSET] = IPOPT_MINOFF;
-		for (i=0; i<nroute; i++)
-			*(__u32*)&rspace[4+i*4] = route[i];
+		for (i = 0; i < nroute; i++) {
+			tmp_rspace = (__u32*)&rspace[4+i*4];
+			*tmp_rspace = route[i];
+		}
 
 		if (setsockopt(sock->fd, IPPROTO_IP, IP_OPTIONS, rspace, 4 + nroute*4) < 0) {
 			perror("ping: record route");
@@ -794,12 +868,8 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
 	}
 
 	if (datalen > 0xFFFF - 8 - optlen - 20) {
-		if (uid || datalen > max_ping4_packet-8 || datalen > MAXPACKET-8) {
-			fprintf(stderr, "Error: packet size %d is too large. Maximum is %d\n", datalen, 0xFFFF-8-20-optlen);
-			exit(2);
-		}
-		/* Allow small oversize to root yet. It will cause EMSGSIZE. */
-		fprintf(stderr, "WARNING: packet size %d is too large. Maximum is %d\n", datalen, 0xFFFF-8-20-optlen);
+		fprintf(stderr, "Error: packet size %d is too large. Maximum is %d\n", datalen, 0xFFFF-8-20-optlen);
+		exit(2);
 	}
 
 	if (datalen >= sizeof(struct timeval))	/* can we time transfer */
@@ -989,7 +1059,7 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
 	int csfailed;
 	struct cmsghdr *cmsg;
 	int ttl;
-	__u8 *opts;
+	__u8 *opts, *tmp_ttl;
 	int optlen;
 
 	/* Check the IP header */
@@ -1016,7 +1086,8 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
 			if (cmsg->cmsg_type == IP_TTL) {
 				if (cmsg->cmsg_len < sizeof(int))
 					continue;
-				ttl = *(int *) CMSG_DATA(cmsg);
+				tmp_ttl = (__u8 *) CMSG_DATA(cmsg);
+				ttl = (int)*tmp_ttl;
 			} else if (cmsg->cmsg_type == IP_RETOPTS) {
 				opts = (__u8 *) CMSG_DATA(cmsg);
 				optlen = cmsg->cmsg_len;
@@ -1040,9 +1111,7 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
 			return 0;
 		}
 	} else {
-		/* We fall here when a redirect or source quench arrived.
-		 * Also this branch processes icmp errors, when IP_RECVERR
-		 * is broken. */
+		/* We fall here when a redirect or source quench arrived. */
 
 		switch (icp->type) {
 		case ICMP_ECHO:
@@ -1070,14 +1139,8 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
 					acknowledge(ntohs(icp1->un.echo.sequence));
 					return 0;
 				}
-				nerrors+=error_pkt;
-				if (options&F_QUIET)
-					return !error_pkt;
-				if (options & F_FLOOD) {
-					if (error_pkt)
-						write_stdout("\bE", 2);
-					return !error_pkt;
-				}
+				if (options & (F_QUIET | F_FLOOD))
+					return 1;
 				print_timestamp();
 				printf("From %s: icmp_seq=%u ",
 				       pr_addr(from, sizeof *from),
@@ -1085,7 +1148,7 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
 				if (csfailed)
 					printf("(BAD CHECKSUM)");
 				pr_icmph(icp->type, icp->code, ntohl(icp->un.gateway), icp);
-				return !error_pkt;
+				return 1;
 			}
 		default:
 			/* MUST NOT */
@@ -1353,8 +1416,6 @@ void pr_options(unsigned char * cp, int hlen)
 		case IPOPT_LSRR:
 			printf("\n%cSRR: ", *cp==IPOPT_SSRR ? 'S' : 'L');
 			j = *++cp;
-			i = *++cp;
-			i -= 4;
 			cp++;
 			if (j > IPOPT_MINOFF) {
 				for (;;) {
@@ -1387,8 +1448,6 @@ void pr_options(unsigned char * cp, int hlen)
 			    && !memcmp(cp, old_rr, i)
 			    && !(options & F_FLOOD)) {
 				printf("\t(same route)");
-				i = ((i + 3) / 4) * 4;
-				cp += i;
 				break;
 			}
 			old_rrlen = i;

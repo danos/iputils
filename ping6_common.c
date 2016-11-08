@@ -797,14 +797,17 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 			enable_capability_raw();
 			if (
 #ifdef IPV6_RECVPKTINFO
-			    setsockopt(probe_fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof ipi) == -1 &&
+				setsockopt(probe_fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof ipi) == -1 &&
+				setsockopt(sock->fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof ipi) == -1 &&
 #endif
-			    setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
+				setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1 &&
+				setsockopt(sock->fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
 				perror("setsockopt(SO_BINDTODEVICE)");
 				exit(2);
 			}
 			disable_capability_raw();
 		}
+		firsthop.sin6_family = AF_INET6;
 		firsthop.sin6_port = htons(1025);
 		if (connect(probe_fd, (struct sockaddr*)&firsthop, sizeof(firsthop)) == -1) {
 			perror("connect");
@@ -1293,7 +1296,7 @@ static
 void pr_niquery_reply_addr(struct ni_hdr *nih, int len)
 {
 	__u8 *h = (__u8 *)(nih + 1);
-	__u8 *p = h + 4;
+	__u8 *p;
 	__u8 *end = (__u8 *)nih + len;
 	int af;
 	int aflen;

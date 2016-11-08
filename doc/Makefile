@@ -1,3 +1,5 @@
+SHELL:=/bin/bash #required for pushd and popd
+
 SGMLFILES=$(shell echo *.sgml)
 HTMLFILES=$(subst .sgml,.html,$(SGMLFILES)) index.html
 MANFILES=$(subst .sgml,.8,$(SGMLFILES))
@@ -41,12 +43,12 @@ iputils.html: iputils.db
 $(MANFILES): index.db
 	@set -e; \
 	$(SETUP_TMPDIR); \
-	nsgmls ../$< | sgmlspl ../docbook2man-spec.pl; \
+	nsgmls ../$< | sgmlspl ../docbook2man-spec.pl ""; \
 	mv $@ ..; \
 	$(CLEAN_TMPDIR)
 
-fix_sgml2man:
-	@sed -i -e 's!\\fB\\fIdestination\\fB\\fR \[\\fB/\\fIport\\fB\\fR\]!\\fB\\fIdestination\\fB\\fR[\\fB/\\fIport\\fB\\fR]!g' tracepath.8
+fix_sgml2man: tracepath.8
+	@sed -i -e 's!\\fB\\fIdestination\\fB\\fR \[\\fB/\\fIport\\fB\\fR\]!\\fB\\fIdestination\\fB\\fR[\\fB/\\fIport\\fB\\fR]!g' $<
 
 clean:
 	@rm -rf $(MANFILES) $(HTMLFILES) iputils.html tmp.db2html* tmp.db2man*

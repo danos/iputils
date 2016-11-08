@@ -373,11 +373,10 @@ resend:
 	if (i > 0) {
 		/* Apparently, it is some fatal bug. */
 		abort();
-	} else if (errno == ENOBUFS || errno == ENOMEM || errno == EPERM) {
+	} else if (errno == ENOBUFS || errno == ENOMEM) {
 		int nores_interval;
 
-		/* Device queue overflow, OOM or operation not permitted.
-		 * Packet is not sent. */
+		/* Device queue overflow or OOM. Packet is not sent. */
 		tokens = 0;
 		/* Slowdown. This works only in adaptive mode (option -A) */
 		rtt_addend += (rtt < 8*50000 ? rtt/8 : 50000);
@@ -386,8 +385,7 @@ resend:
 		nores_interval = SCHINT(interval/2);
 		if (nores_interval > 500)
 			nores_interval = 500;
-		if (errno != EPERM)
-			oom_count++;
+		oom_count++;
 		if (oom_count*nores_interval < lingertime)
 			return nores_interval;
 		i = 0;
@@ -401,9 +399,14 @@ resend:
 		return MININTERVAL;
 	} else {
 		if ((i=fset->receive_error_msg(sock)) > 0) {
-			/* An ICMP error arrived. */
-			tokens += interval;
-			return MININTERVAL;
+			/* An ICMP error arrived. In this case, we've received
+			 * an error from sendto(), but we've also received an
+			 * ICMP message, which means the packet did in fact
+			 * send in some capacity. So, in this odd case, report
+			 * the more specific errno as the error, and treat this
+			 * as a hard local error. */
+			i = 0;
+			goto hard_local_error;
 		}
 		/* Compatibility with old linuces. */
 		if (i == 0 && confirm_flag && errno == EINVAL) {
@@ -414,6 +417,7 @@ resend:
 			goto resend;
 	}
 
+hard_local_error:
 	/* Hard local error. Pretend we sent packet. */
 	advance_ntransmitted();
 

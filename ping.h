@@ -57,6 +57,10 @@
 #include "in6_flowlabel.h"
 #include "SNAPSHOT.h"
 
+#ifndef SCOPE_DELIMITER
+#define SCOPE_DELIMITER '%'
+#endif
+
 #define	DEFDATALEN	(64 - 8)	/* default data length */
 
 #define	MAXWAIT		10		/* max seconds to wait for response */
@@ -163,6 +167,7 @@ extern volatile int exiting;
 extern volatile int status_snapshot;
 extern int confirm;
 extern int confirm_flag;
+extern char *device;
 
 extern volatile int in_pr_addr;		/* pr_addr() is executing */
 extern jmp_buf pr_addr_jmp;
