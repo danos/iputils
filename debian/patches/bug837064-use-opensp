@@ -1,0 +1,19 @@
+Description: Replace sp package with opensp in build dependencies.
+Author: Neil Roeth <neil@debian.org>
+Origin: other
+Last-Update: 2016-09-07
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+Index: iputils/doc/Makefile
+===================================================================
+--- iputils.orig/doc/Makefile
++++ iputils/doc/Makefile
+@@ -44,7 +44,7 @@ iputils.html: iputils.db
+ $(MANFILES): index.db
+ 	@set -e; \
+ 	$(SETUP_TMPDIR); \
+-	nsgmls ../$< | sgmlspl ../docbook2man-spec.pl "$(BUILD_DATE)"; \
++	onsgmls ../$< | sgmlspl ../docbook2man-spec.pl "$(BUILD_DATE)"; \
+ 	mv $@ ..; \
+ 	$(CLEAN_TMPDIR)
+ 
