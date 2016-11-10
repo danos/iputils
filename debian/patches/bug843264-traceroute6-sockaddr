@@ -1,0 +1,25 @@
+Description: Fix traceroute6
+ traceroute6 tried to send packets to UDP port 0
+Bug-Debian: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=843264
+Forwarded: https://github.com/iputils/iputils/issues/68
+Author: Noah Meyerhans <noahm@debian.org>
+Index: iputils/traceroute6.c
+===================================================================
+--- iputils.orig/traceroute6.c
++++ iputils/traceroute6.c
+@@ -444,7 +444,6 @@ int main(int argc, char *argv[])
+ 	(void) memset((char *)&whereto, 0, sizeof(whereto));
+ 
+ 	to->sin6_family = AF_INET6;
+-	to->sin6_port = htons(port);
+ 
+ 	if (inet_pton(AF_INET6, *argv, &to->sin6_addr) > 0) {
+ 		hostname = *argv;
+@@ -462,6 +461,7 @@ int main(int argc, char *argv[])
+ 		}
+ 
+ 		memcpy(to, result->ai_addr, sizeof *to);
++		to->sin6_port = htons(port);
+ 		hostname = result->ai_canonname;
+ 		freeaddrinfo(result);
+ 	}

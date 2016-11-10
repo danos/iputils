@@ -1,10 +1,12 @@
 iputils (3:20161105-1) unstable; urgency=medium
 
-  * New upstream release (Closes: #819204, #825754, #843264).
+  * New upstream release (Closes: #819204, #825754)
   * Merge IPv6 support into tracepath, drop tracepath6 binary.
   * Set debhelper compat level to 9
   * Bump standards version to 3.9.8 (no changes needed).
   * Switch to opensp for docbook processing (Closes: #837064)
+  * Fix issue with UDP destination port management in
+    traceroute6. (Closes: #843264)
 
  -- Noah Meyerhans <noahm@debian.org>  Tue, 08 Nov 2016 07:32:38 -0800
 
