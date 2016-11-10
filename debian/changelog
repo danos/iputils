@@ -7,8 +7,9 @@ iputils (3:20161105-1) unstable; urgency=medium
   * Switch to opensp for docbook processing (Closes: #837064)
   * Fix issue with UDP destination port management in
     traceroute6. (Closes: #843264)
+  * Explicitly build-depend on libidn11-dev
 
- -- Noah Meyerhans <noahm@debian.org>  Tue, 08 Nov 2016 07:32:38 -0800
+ -- Noah Meyerhans <noahm@debian.org>  Wed, 09 Nov 2016 22:23:32 -0800
 
 iputils (3:20150815-2) unstable; urgency=medium
 
