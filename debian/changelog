@@ -3,6 +3,7 @@ iputils (3:20161105+20180520-1) unstable; urgency=medium
   * New upstream snapshot.
   * Update build deps to reflect changes to documentation generation
     process.
+  * Update Vcs links in debian/control to reflect the salsa migration.
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 20 Aug 2017 14:59:06 -0700
 
