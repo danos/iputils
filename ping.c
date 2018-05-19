@@ -13,11 +13,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -97,6 +93,7 @@ static void usage(void) __attribute__((noreturn));
 static unsigned short in_cksum(const unsigned short *addr, int len, unsigned short salt);
 static void pr_icmph(__u8 type, __u8 code, __u32 info, struct icmphdr *icp);
 static int parsetos(char *str);
+static int parseflow(char *str);
 
 static struct {
 	struct cmsghdr cm;
@@ -107,7 +104,7 @@ int cmsg_len;
 
 static struct sockaddr_in source = { .sin_family = AF_INET };
 char *device;
-static int pmtudisc = -1;
+int pmtudisc = -1;
 
 static void create_socket(socket_st *sock, int family, int socktype, int protocol, int requisite)
 {
@@ -168,8 +165,6 @@ static void create_socket(socket_st *sock, int family, int socktype, int protoco
 		do_fallback = 1;
 
 	if (socktype == SOCK_RAW || do_fallback) {
-		if (options & F_VERBOSE && do_fallback)
-			fprintf(stderr, "ping: socket: %s, attempting raw socket...\n", strerror(errno));
 		socktype = SOCK_RAW;
 		sock->fd = socket(family, SOCK_RAW, protocol);
 	}
@@ -267,11 +262,7 @@ main(int argc, char **argv)
 			hints.ai_family = AF_INET6;
 			break;
 		case 'F':
-			flowlabel = hextoui(optarg);
-			if (errno || (flowlabel & ~IPV6_FLOWINFO_FLOWLABEL)) {
-				fprintf(stderr, "ping: Invalid flowinfo %s\n", optarg);
-				exit(2);
-			}
+			flowlabel = parseflow(optarg);
 			options |= F_FLOWINFO;
 			break;
 		case 'N':
@@ -417,14 +408,8 @@ main(int argc, char **argv)
 			options |= F_QUIET;
 			break;
 		case 'Q':
-			/* IPv4 */
-			settos = parsetos(optarg);
-			/* IPv6 */
-			tclass = hextoui(optarg);
-			if (errno || (tclass & ~0xff)) {
-				fprintf(stderr, "ping: Invalid tclass %s\n", optarg);
-				exit(2);
-			}
+			settos = parsetos(optarg); /* IPv4 */
+			tclass = settos; /* IPv6 */
 			break;
 		case 'r':
 			options |= F_SO_DONTROUTE;
@@ -498,8 +483,14 @@ main(int argc, char **argv)
 	enable_capability_raw();
 	if (hints.ai_family != AF_INET6)
 		create_socket(&sock4, AF_INET, hints.ai_socktype, IPPROTO_ICMP, hints.ai_family == AF_INET);
-	if (hints.ai_family != AF_INET)
+	if (hints.ai_family != AF_INET) {
 		create_socket(&sock6, AF_INET6, hints.ai_socktype, IPPROTO_ICMPV6, sock4.fd == -1);
+		/* This may not be needed if both protocol versions always had the same value, but
+		 * since I don't know that, it's better to be safe than sorry. */
+		pmtudisc = pmtudisc == IP_PMTUDISC_DO   ? IPV6_PMTUDISC_DO :
+			   pmtudisc == IP_PMTUDISC_DONT ? IPV6_PMTUDISC_DONT :
+			   pmtudisc == IP_PMTUDISC_WANT ? IPV6_PMTUDISC_WANT : pmtudisc;
+	}
 	disable_capability_raw();
 
 	/* Limit address family on single-protocol systems */
@@ -850,14 +841,14 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
 
 	if (options & F_NOLOOP) {
 		int loop = 0;
-		if (setsockopt(sock->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, 1) == -1) {
+		if (setsockopt(sock->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof loop) == -1) {
 			perror ("ping: can't disable multicast loopback");
 			exit(2);
 		}
 	}
 	if (options & F_TTL) {
 		int ittl = ttl;
-		if (setsockopt(sock->fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, 1) == -1) {
+		if (setsockopt(sock->fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof ttl) == -1) {
 			perror ("ping: can't set multicast time-to-live");
 			exit(2);
 		}
@@ -953,17 +944,6 @@ int ping4_receive_error_msg(socket_st *sock)
 		}
 
 		acknowledge(ntohs(icmph.un.echo.sequence));
-
-		if (sock->socktype == SOCK_RAW && !sock->working_recverr) {
-			struct icmp_filter filt;
-			sock->working_recverr = 1;
-			/* OK, it works. Add stronger filter. */
-			filt.data = ~((1<<ICMP_SOURCE_QUENCH)|  
-					(1<<ICMP_REDIRECT)|
-					(1<<ICMP_ECHOREPLY));
-			if (setsockopt(sock->fd, SOL_RAW, ICMP_FILTER, (char*)&filt, sizeof(filt)) == -1)
-				perror("\rWARNING: setsockopt(ICMP_FILTER)");
-		}
 
 		net_errors++;
 		nerrors++;
@@ -1103,9 +1083,11 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
 	if (icp->type == ICMP_ECHOREPLY) {
 		if (!is_ours(sock, icp->un.echo.id))
 			return 1;			/* 'Twas not our ECHO */
+		if (!contains_pattern_in_payload((__u8*)(icp+1)))
+			return 1;			/* 'Twas really not our ECHO */
 		if (gather_statistics((__u8*)icp, sizeof(*icp), cc,
 				      ntohs(icp->un.echo.sequence),
-				      ttl, 0, tv, pr_addr(from, sizeof *from),
+				      ttl, csfailed, tv, pr_addr(from, sizeof *from),
 				      pr_echo_reply)) {
 			fflush(stdout);
 			return 0;
@@ -1621,11 +1603,39 @@ int parsetos(char *str)
 	}
 
 	if (tos > TOS_MAX) {
-		fprintf(stderr, "ping: the decimal value of TOS bits must be 0-254 (or zero)\n");
+		fprintf(stderr, "ping: the decimal value of TOS bits must be in range 0-255\n");
 		exit(2);
 	}
 	return(tos);
 }
+
+int parseflow(char *str)
+{
+	const char *cp;
+	unsigned long val;
+	char *ep;
+
+	/* handle both hex and decimal values */
+	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+		cp = str + 2;
+		val = (int)strtoul(cp, &ep, 16);
+	} else
+		val = (int)strtoul(str, &ep, 10);
+
+	/* doesn't look like decimal or hex, eh? */
+	if (*ep != '\0') {
+		fprintf(stderr, "ping: \"%s\" bad value for flowinfo\n", str);
+		exit(2);
+	}
+
+	if (val & ~IPV6_FLOWINFO_FLOWLABEL) { /* Flow is 20 bit value */
+		fprintf(stderr, "ping: \"%s\" value is greater than 20 bits.\n", str);
+		exit(2);
+	}
+	return(val);
+}
+
+
 
 void ping4_install_filter(socket_st *sock)
 {

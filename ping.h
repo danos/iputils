@@ -36,8 +36,7 @@
 
 #ifdef USE_IDN
 #include <locale.h>
-#include <idna.h>
-#include <stringprep.h>
+#include <idn2.h>
 #define getaddrinfo_flags (AI_CANONNAME | AI_IDN | AI_CANONIDN)
 #define getnameinfo_flags NI_IDN
 #else
@@ -81,9 +80,7 @@ extern int options;
 #define	F_SO_DONTROUTE	0x080
 #define	F_VERBOSE	0x100
 #define	F_TIMESTAMP	0x200
-#define	F_FLOWINFO	0x200
 #define	F_SOURCEROUTE	0x400
-#define	F_TCLASS	0x400
 #define	F_FLOOD_POLL	0x800
 #define	F_LATENCY	0x1000
 #define	F_AUDIBLE	0x2000
@@ -94,6 +91,8 @@ extern int options;
 #define F_MARK		0x40000
 #define F_PTIMEOFDAY	0x80000
 #define F_OUTSTANDING	0x100000
+#define F_FLOWINFO	0x200000
+#define F_TCLASS	0x400000
 
 /*
  * MAX_DUP_CHK is the number of bits in received table, i.e. the maximum
@@ -168,6 +167,7 @@ extern volatile int status_snapshot;
 extern int confirm;
 extern int confirm_flag;
 extern char *device;
+extern int pmtudisc;
 
 extern volatile int in_pr_addr;		/* pr_addr() is executing */
 extern jmp_buf pr_addr_jmp;
@@ -285,9 +285,6 @@ extern void drop_capabilities(void);
 typedef struct socket_st {
 	int fd;
 	int socktype;
-	/* And this is workaround for bug in IP_RECVERR on raw sockets which is present
-	 * in linux-2.2.[0-19], linux-2.4.[0-7] */
-	int working_recverr;
 } socket_st;
 
 char *pr_addr(void *sa, socklen_t salen);
@@ -313,6 +310,7 @@ extern ping_func_set_st ping4_func_set;
 extern int pinger(ping_func_set_st *fset, socket_st *sock);
 extern void sock_setbufs(socket_st*, int alloc);
 extern void setup(socket_st *);
+extern int contains_pattern_in_payload(__u8 *ptr);
 extern void main_loop(ping_func_set_st *fset, socket_st*, __u8 *buf, int buflen) __attribute__((noreturn));
 extern void finish(void) __attribute__((noreturn));
 extern void status(void);
@@ -340,7 +338,6 @@ void ping6_install_filter(socket_st *sockets);
 extern ping_func_set_st ping6_func_set;
 
 int niquery_option_handler(const char *opt_arg);
-int hextoui(const char *str);
 
 extern __u32 tclass;
 extern __u32 flowlabel;

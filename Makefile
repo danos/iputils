@@ -13,9 +13,8 @@ LDFLAG_CAP=-lcap
 LDFLAG_GCRYPT=-lgcrypt -lgpg-error
 LDFLAG_NETTLE=-lnettle
 LDFLAG_CRYPTO=-lcrypto
-LDFLAG_IDN=-lidn
+LDFLAG_IDN=-lidn2
 LDFLAG_RESOLV=-lresolv
-LDFLAG_SYSFS=-lsysfs
 LDFLAG_RT=-lrt
 LDFLAG_M=-lm
 
@@ -25,8 +24,8 @@ LDFLAG_M=-lm
 
 # Capability support (with libcap) [yes|static|no]
 USE_CAP=yes
-# sysfs support (with libsysfs - deprecated) [no|yes|static]
-USE_SYSFS=no
+# sysfs support
+USE_SYSFS=yes
 # IDN support  [yes|no|static]
 USE_IDN=yes
 
@@ -88,7 +87,6 @@ endif
 # USE_SYSFS: DEF_SYSFS, LIB_SYSFS
 ifneq ($(USE_SYSFS),no)
 	DEF_SYSFS = -DUSE_SYSFS
-	LIB_SYSFS = $(call FUNC_LIB,$(USE_SYSFS),$(LDFLAG_SYSFS))
 endif
 
 # USE_IDN: DEF_IDN, LIB_IDN
@@ -120,15 +118,13 @@ TARGETS=ping tracepath traceroute6 clockdiff rdisc arping tftpd rarpd
 
 LDLIBS=$(LDLIB) $(ADDLIB)
 
-UNAME_N:=$(shell uname -n)
-LASTTAG:=$(shell git describe HEAD | sed -e 's/-.*//')
 TODAY=$(shell date +%Y-%m-%d)
 DATE=$(shell date -d $(TODAY) +%Y%m%d)
 TAG:=$(shell date -d $(TODAY) +s%Y%m%d)
 
 
 # -------------------------------------
-.PHONY: all ninfod clean distclean man html check-kernel modules snapshot
+.PHONY: all ninfod clean distclean man html snapshot
 
 all: $(TARGETS)
 
@@ -143,7 +139,7 @@ $(TARGETS): %: %.o
 # -------------------------------------
 # arping
 DEF_arping = $(DEF_SYSFS) $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS)
-LIB_arping = $(LIB_SYSFS) $(LIB_CAP) $(LIB_IDN) $(LDFLAG_RT)
+LIB_arping = $(LIB_CAP) $(LIB_IDN) $(LDFLAG_RT)
 
 ifneq ($(ARPING_DEFAULT_DEVICE),)
 DEF_arping += -DDEFAULT_DEVICE=\"$(ARPING_DEFAULT_DEVICE)\"
@@ -199,20 +195,6 @@ ninfod:
 		$(MAKE) -C ninfod
 
 # -------------------------------------
-# modules / check-kernel are only for ancient kernels; obsolete
-check-kernel:
-ifeq ($(KERNEL_INCLUDE),)
-	@echo "Please, set correct KERNEL_INCLUDE"; false
-else
-	@set -e; \
-	if [ ! -r $(KERNEL_INCLUDE)/linux/autoconf.h ]; then \
-		echo "Please, set correct KERNEL_INCLUDE"; false; fi
-endif
-
-modules: check-kernel
-	$(MAKE) KERNEL_INCLUDE=$(KERNEL_INCLUDE) -C Modules
-
-# -------------------------------------
 man:
 	$(MAKE) -C doc man
 
@@ -238,16 +220,7 @@ distclean: clean
 RPMBUILD=rpmbuild
 RPMTMP=.rpmtmp
 snapshot:
-	@echo "[$(TAG)]" > RELNOTES.NEW
-	@echo >>RELNOTES.NEW
-	@git log --no-merges $(LASTTAG).. | git shortlog >> RELNOTES.NEW
-	@echo >> RELNOTES.NEW
-	@cat RELNOTES >> RELNOTES.NEW
-	@mv RELNOTES.NEW RELNOTES
-	@sed -e "s/^%define ssdate .*/%define ssdate $(DATE)/" iputils.spec > iputils.spec.tmp
-	@mv iputils.spec.tmp iputils.spec
 	@echo "#define SNAPSHOT \"$(TAG)\"" > SNAPSHOT.h
-	@$(MAKE) -C doc snapshot
 	@$(MAKE) man
 	@git commit -a -m "iputils-$(TAG)"
 	@git tag -s -m "iputils-$(TAG)" $(TAG)
