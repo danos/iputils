@@ -208,6 +208,8 @@ main(int argc, char **argv)
 #ifdef USE_IDN
 	setlocale(LC_ALL, "");
 #endif
+	if (!strcmp(setlocale(LC_ALL, NULL), "C"))
+		hints.ai_flags &= ~ AI_CANONIDN;
 
 	/* Support being called using `ping4` or `ping6` symlinks */
 	if (argv[0][strlen(argv[0])-1] == '4')
@@ -542,7 +544,7 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
 	unsigned char *packet;
 	char *target;
 	char hnamebuf[NI_MAXHOST];
-	char rspace[3 + 4 * NROUTES + 1];	/* record route space */
+	unsigned char rspace[3 + 4 * NROUTES + 1];	/* record route space */
 	__u32 *tmp_rspace;
 
 	if (argc > 1) {
