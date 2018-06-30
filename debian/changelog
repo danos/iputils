@@ -1,6 +1,6 @@
 iputils (3:20180629-1) unstable; urgency=medium
 
-  * New upstream snapshot.
+  * New upstream snapshot. (Closes: #858272, #898978, #477569, #883982)
   * Update build deps to reflect changes to documentation generation
     process.
   * Update Vcs links in debian/control to reflect the salsa migration.
