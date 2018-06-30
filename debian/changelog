@@ -4,6 +4,8 @@ iputils (3:20180629-1) unstable; urgency=medium
   * Update build deps to reflect changes to documentation generation
     process.
   * Update Vcs links in debian/control to reflect the salsa migration.
+  * Update standards version to 4.1.4
+  * Change Priority: extra to Priority: optional per policy 4.0.1
 
  -- Noah Meyerhans <noahm@debian.org>  Sun, 20 Aug 2017 14:59:06 -0700
 
