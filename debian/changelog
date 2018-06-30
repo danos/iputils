@@ -1,4 +1,4 @@
-iputils (3:20161105+20180520-1) unstable; urgency=medium
+iputils (3:20180629-1) unstable; urgency=medium
 
   * New upstream snapshot.
   * Update build deps to reflect changes to documentation generation
