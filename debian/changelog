@@ -1,3 +1,10 @@
+iputils (3:20180629-2) unstable; urgency=medium
+
+  * Upstream no longer maintains the RELNOTES or README files in a useful
+    way, so we won't install them. (Closes: #904912)
+
+ -- Noah Meyerhans <noahm@debian.org>  Fri, 03 Aug 2018 09:53:09 -0700
+
 iputils (3:20180629-1) unstable; urgency=medium
 
   * New upstream snapshot. (Closes: #858272, #898978, #477569, #883982)
