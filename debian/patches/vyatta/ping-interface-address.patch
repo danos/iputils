@@ -1,0 +1,170 @@
+---
+ ping.c         |   86 +++++++++++++++++++++++++++++++++++++++++++++++++++++----
+ ping6_common.c |    5 ---
+ 2 files changed, 82 insertions(+), 9 deletions(-)
+
+--- a/ping.c
++++ b/ping.c
+@@ -207,6 +207,7 @@ main(int argc, char **argv)
+ 	socket_st sock4 = { .fd = -1 };
+ 	socket_st sock6 = { .fd = -1 };
+ 	char *target;
++	char *addr_device = NULL;
+ 
+ 	limit_capabilities();
+ 
+@@ -221,7 +222,7 @@ main(int argc, char **argv)
+ 		hints.ai_family = AF_INET6;
+ 
+ 	/* Parse command line options */
+-	while ((ch = getopt(argc, argv, "h?" "4bRT:" "6F:N:" "aABc:dDfi:I:l:Lm:M:nOp:qQ:rs:S:t:UvVw:W:")) != EOF) {
++	while ((ch = getopt(argc, argv, "h?" "4bRT:" "6F:N:" "aABc:dDfi:I:l:Lm:M:nOp:qQ:rs:S:t:UvVw:W:Z:")) != EOF) {
+ 		switch(ch) {
+ 		/* IPv4 specific options */
+ 		case '4':
+@@ -330,6 +331,7 @@ main(int argc, char **argv)
+ 			break;
+ 		}
+ 		case 'I':
++		case 'Z':
+ 			/* IPv6 */
+ 			if (strchr(optarg, ':')) {
+ 				char *p, *addr = strdup(optarg);
+@@ -356,7 +358,12 @@ main(int argc, char **argv)
+ 			} else if (inet_pton(AF_INET, optarg, &source.sin_addr) > 0) {
+ 				options |= F_STRICTSOURCE;
+ 			} else {
+-				device = optarg;
++				if (ch == 'I')
++					device = optarg;
++				if (ch == 'Z') {
++					addr_device = optarg;
++					options |= F_STRICTSOURCE;
++				}
+ 			}
+ 			break;
+ 		case 'l':
+@@ -522,6 +529,76 @@ main(int argc, char **argv)
+ 		exit(2);
+ 	}
+ 
++	/* get interface address if required */
++	if (addr_device) {
++		struct ifaddrs *ifap, *ifa;
++		int found = 0, found6 = 0;
++		struct in6_addr *v6addr;
++		struct ifreq ifr;
++		int fd = (sock4.fd != -1) ? sock4.fd : sock6.fd;
++
++		/* check if interface is up */
++		memset(&ifr, 0, sizeof(ifr));
++		strncpy(ifr.ifr_name, addr_device, IFNAMSIZ-1);
++		if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
++			fprintf(stderr, "ping: SIOCGIFFLAGS for %s, %s\n",
++				addr_device,strerror (errno));
++			freeaddrinfo(result);
++			exit(2);
++		}
++
++		if (!(ifr.ifr_flags & IFF_UP)) {
++			fprintf(stderr, "ping: interface %s is down\n",
++				addr_device);
++			freeaddrinfo(result);
++			exit(2);
++		}
++
++		if (getifaddrs (&ifap) < 0) {
++			fprintf(stderr, "ping: getifaddrs failed, %s\n",
++				strerror (errno));
++			freeaddrinfo(result);
++			exit(2);
++		}
++		for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
++			if (ifa->ifa_addr &&
++			    (strncmp(ifa->ifa_name, addr_device,
++				     IFNAMSIZ - 1) == 0)) {
++				if (!found && ifa->ifa_addr->sa_family ==
++				    AF_INET) {
++					if (source.sin_addr.s_addr
++					    != htonl(INADDR_LOOPBACK)) {
++						found = 1;
++						source =
++							*(struct sockaddr_in *)
++							ifa->ifa_addr;
++					}
++				}
++				else if (!found6 &&
++					 ifa->ifa_addr->sa_family == AF_INET6) {
++					v6addr = &source6.sin6_addr;
++					if ((!IN6_IS_ADDR_LINKLOCAL(v6addr) &&
++					     !IN6_IS_ADDR_LOOPBACK(v6addr))) {
++						found6 = 1;
++						source6 =
++							*(struct sockaddr_in6 *)
++							ifa->ifa_addr;
++					}
++				}
++				/* find first address for each AF */
++				if (found && found6)
++					break;
++			}
++		}
++		freeifaddrs(ifap);
++		if (!found && !found6) {
++			fprintf(stderr, "ping: No suitable addresses found on interface %s.\n", addr_device);
++			freeaddrinfo(result);
++			exit(2);
++		}
++
++	}
++
+ 	for (ai = result; ai; ai = ai->ai_next) {
+ 		switch (ai->ai_family) {
+ 		case AF_INET:
+@@ -605,7 +682,7 @@ int ping4_run(int argc, char **argv, str
+ 		argv++;
+ 	}
+ 
+-	if (source.sin_addr.s_addr == 0) {
++	if (source.sin_addr.s_addr == 0 || device) {
+ 		socklen_t alen;
+ 		struct sockaddr_in dst = whereto;
+ 		int probe_fd = socket(AF_INET, SOCK_DGRAM, 0);
+@@ -705,8 +782,6 @@ int ping4_run(int argc, char **argv, str
+ 					break;
+ 			}
+ 			freeifaddrs(ifa0);
+-			if (!ifa)
+-				fprintf(stderr, "ping: Warning: source address might be selected on device other than %s.\n", device);
+ 		}
+ #endif
+ 		close(probe_fd);
+@@ -1682,6 +1757,7 @@ void usage(void)
+ 		USAGE_NEWLINE
+ 		" [-w deadline]"
+ 		" [-W timeout]"
++		" [-Z source-interface]"
+ 		" [hop1 ...] destination"
+ 		"\n"
+ 	);
+--- a/ping6_common.c
++++ b/ping6_common.c
+@@ -774,7 +774,7 @@ int ping6_run(int argc, char **argv, str
+ 
+ 	hostname = target;
+ 
+-	if (IN6_IS_ADDR_UNSPECIFIED(&source6.sin6_addr)) {
++	if (IN6_IS_ADDR_UNSPECIFIED(&source6.sin6_addr) || device) {
+ 		socklen_t alen;
+ 		int probe_fd = socket(AF_INET6, SOCK_DGRAM, 0);
+ 
+@@ -842,9 +842,6 @@ int ping6_run(int argc, char **argv, str
+ 						       &source6.sin6_addr))
+ 					break;
+ 			}
+-			if (!ifa)
+-				fprintf(stderr, "ping6: Warning: source address might be selected on device other than %s.\n", device);
+-
+ 			freeifaddrs(ifa0);
+ 		}
+ #endif

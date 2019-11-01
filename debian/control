@@ -1,7 +1,7 @@
 Source: iputils
 Section: net
 Priority: extra
-Maintainer: Noah Meyerhans <noahm@debian.org>
+Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
 Standards-Version: 3.9.8
 Build-Depends: debhelper (>= 7), opensp, sgmlspl, docbook, libcap-dev, libgnutls-openssl-dev, libidn11-dev, bash (>= 3)
 Vcs-Git: https://anonscm.debian.org/git/collab-maint/iputils.git
@@ -9,7 +9,7 @@ Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/iputils.git
 
 Package: iputils-ping
 Architecture: any
-Provides: ping
+Provides: ping, vyatta-ping
 Priority: important
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: libcap2-bin

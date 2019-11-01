@@ -2,3 +2,5 @@ set_buildflags
 reproducible_timestamps_in_generated_files.patch
 bug837064-use-opensp
 bug843264-traceroute6-sockaddr
+vyatta/ping6-device-binding.patch
+vyatta/ping-interface-address.patch
