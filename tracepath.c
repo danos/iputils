@@ -28,7 +28,6 @@
 #include <arpa/inet.h>
 
 #ifdef USE_IDN
-#include <idna.h>
 #include <locale.h>
 #define getnameinfo_flags	NI_IDN
 #else
@@ -366,7 +365,7 @@ static void usage(void) __attribute((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: tracepath [-n] [-b] [-l <len>] [-p port] <destination>\n");
+	fprintf(stderr, "Usage: tracepath [-4] [-6] [-n] [-b] [-l <len>] [-p port] <destination>\n");
 	exit(-1);
 }
 
@@ -393,6 +392,12 @@ int main(int argc, char **argv)
 #ifdef USE_IDN
 	setlocale(LC_ALL, "");
 #endif
+
+	/* Support being called using `tracepath4` or `tracepath6` symlinks */
+	if (argv[0][strlen(argv[0])-1] == '4')
+		hints.ai_family = AF_INET;
+	else if (argv[0][strlen(argv[0])-1] == '6')
+		hints.ai_family = AF_INET6;
 
 	while ((ch = getopt(argc, argv, "46nbh?l:m:p:")) != EOF) {
 		switch(ch) {
@@ -470,7 +475,7 @@ int main(int argc, char **argv)
 		fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 		if (fd < 0)
 			continue;
-		memcpy(&target, ai->ai_addr, sizeof(target));
+		memcpy(&target, ai->ai_addr, sizeof(*ai->ai_addr));
 		targetlen = ai->ai_addrlen;
 		break;
 	}

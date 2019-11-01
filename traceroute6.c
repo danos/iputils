@@ -32,11 +32,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -248,12 +244,13 @@
 #endif
 
 #ifdef USE_IDN
-#include <idna.h>
 #include <locale.h>
 
+#define ADDRINFO_IDN_FLAGS	AI_IDN
 #define getnameinfo_flags	NI_IDN
 #else
 #define getnameinfo_flags	0
+#define ADDRINFO_IDN_FLAGS	0
 #endif
 
 #include <arpa/inet.h>
@@ -335,12 +332,14 @@ int main(int argc, char *argv[])
 	char pa[NI_MAXHOST];
 	extern char *optarg;
 	extern int optind;
-	struct addrinfo hints6 = { .ai_family = AF_INET6, .ai_socktype = SOCK_RAW, .ai_flags = AI_CANONNAME };
+	struct addrinfo hints6 = { .ai_family = AF_INET6, .ai_socktype = SOCK_RAW,
+				   .ai_flags = AI_CANONNAME|ADDRINFO_IDN_FLAGS };
 	struct addrinfo *result;
 	int status;
 	struct sockaddr_in6 from, *to;
 	int ch, i, on, probe, seq, tos, ttl;
 	int socket_errno;
+	char *resolved_hostname = NULL;
 
 	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
 	socket_errno = errno;
@@ -444,17 +443,11 @@ int main(int argc, char *argv[])
 	(void) memset((char *)&whereto, 0, sizeof(whereto));
 
 	to->sin6_family = AF_INET6;
-	to->sin6_port = htons(port);
 
 	if (inet_pton(AF_INET6, *argv, &to->sin6_addr) > 0) {
 		hostname = *argv;
 	} else {
-		char *idn = NULL;
-#ifdef USE_IDN
-		if (idna_to_ascii_lz(*argv, &idn, 0) != IDNA_SUCCESS)
-			idn = NULL;
-#endif
-		status = getaddrinfo(idn ? idn : *argv, NULL, &hints6, &result);
+		status = getaddrinfo(*argv, NULL, &hints6, &result);
 		if (status) {
 			(void)fprintf(stderr,
 			    "traceroute: %s: %s\n", *argv, gai_strerror(status));
@@ -462,9 +455,18 @@ int main(int argc, char *argv[])
 		}
 
 		memcpy(to, result->ai_addr, sizeof *to);
-		hostname = result->ai_canonname;
+		resolved_hostname = strdup(result->ai_canonname);
+		if (resolved_hostname == NULL) {
+			(void)fprintf(stderr,
+			    "traceroute: cannot allocate memory\n");
+			exit(1);
+		}
+		hostname = resolved_hostname;
 		freeaddrinfo(result);
 	}
+
+	to->sin6_port = htons(port);
+
 	firsthop = *to;
 	if (*++argv) {
 		datalen = atoi(*argv);
@@ -646,7 +648,11 @@ int main(int argc, char *argv[])
 		putchar('\n');
 		if (got_there ||
 		    (unreachable > 0 && unreachable >= nprobes-1))
-			exit(0);
+			break;
+	}
+
+	if (resolved_hostname != NULL) {
+		free(resolved_hostname);
 	}
 
 	return 0;

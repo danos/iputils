@@ -10,11 +10,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -58,18 +54,11 @@
 
 #include "tftp.h"
 
-#ifndef MSG_CONFIRM
-#define MSG_CONFIRM 0
-#warning Please, upgrade kernel, otherwise this tftpd has no advantages.
-#endif
-
 #define	TIMEOUT		5
 
 int	peer;
 int	rexmtval = TIMEOUT;
 int	maxtimeout = 5*TIMEOUT;
-
-#define	PKTSIZE	SEGSIZE+4
 char	buf[PKTSIZE];
 char	ackbuf[PKTSIZE];
 union {

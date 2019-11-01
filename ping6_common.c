@@ -22,11 +22,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -101,7 +97,6 @@ void ping6_usage(unsigned) __attribute((noreturn));
 
 struct sockaddr_in6 source6 = { .sin6_family = AF_INET6 };
 char *device;
-int pmtudisc=-1;
 
 #if defined(USE_GCRYPT) || defined(USE_OPENSSL) || defined(USE_NETTLE)
 #include "iputils_md5dig.h"
@@ -435,14 +430,22 @@ static int niquery_option_subject_addr_handler(int index, const char *arg)
 	return 0;
 }
 
-static int niquery_option_subject_name_handler(int index, const char *arg)
+#ifdef USE_IDN
+# if IDN2_VERSION_NUMBER >= 0x02000000
+#  define IDN2_FLAGS IDN2_NONTRANSITIONAL
+# else
+#  define IDN2_FLAGS 0
+# endif
+#endif
+
+static int niquery_option_subject_name_handler(int index, const char *name)
 {
 #ifdef USE_CRYPTO
 	static char nigroup_buf[INET6_ADDRSTRLEN + 1 + IFNAMSIZ];
 	unsigned char *dnptrs[2], **dpp, **lastdnptr;
 	int n;
 	int i;
-	char *name, *p;
+	char *p;
 	char *canonname = NULL, *idn = NULL;
 	unsigned char *buf = NULL;
 	size_t namelen;
@@ -458,31 +461,10 @@ static int niquery_option_subject_name_handler(int index, const char *arg)
 		return -1;
 
 #ifdef USE_IDN
-	name = stringprep_locale_to_utf8(arg);
-	if (!name) {
-		fprintf(stderr, "ping6: IDN support failed.\n");
-		exit(2);
-	}
-#else
-	name = strdup(arg);
-	if (!name)
-		goto oomexit;
-#endif
-
-	p = strchr(name, SCOPE_DELIMITER);
-	if (p) {
-		*p = '\0';
-		if (strlen(p + 1) >= IFNAMSIZ) {
-			fprintf(stderr, "ping6: too long scope name.\n");
-			exit(1);
-		}
-	}
-
-#ifdef USE_IDN
-	rc = idna_to_ascii_8z(name, &idn, 0);
+	rc = idn2_lookup_ul(name, &idn, IDN2_FLAGS);
 	if (rc) {
 		fprintf(stderr, "ping6: IDN encoding error: %s\n",
-			idna_strerror(rc));
+			idn2_strerror(rc));
 		exit(2);
 	}
 #else
@@ -490,6 +472,15 @@ static int niquery_option_subject_name_handler(int index, const char *arg)
 	if (!idn)
 		goto oomexit;
 #endif
+
+	p = strchr(idn, SCOPE_DELIMITER);
+	if (p) {
+		*p = '\0';
+		if (strlen(p + 1) >= IFNAMSIZ) {
+			fprintf(stderr, "ping6: too long scope name.\n");
+			exit(1);
+		}
+	}
 
 	namelen = strlen(idn);
 	canonname = malloc(namelen + 1);
@@ -552,7 +543,6 @@ static int niquery_option_subject_name_handler(int index, const char *arg)
 
 	free(canonname);
 	free(idn);
-	free(name);
 
 	return 0;
 oomexit:
@@ -561,7 +551,6 @@ errexit:
 	free(buf);
 	free(canonname);
 	free(idn);
-	free(name);
 	exit(1);
 #else
 	fprintf(stderr, "ping6: function not available; crypto disabled\n");
@@ -609,27 +598,6 @@ int niquery_option_handler(const char *opt_arg)
 	if (!p->name)
 		ret = niquery_option_help_handler(0, NULL);
 	return ret;
-}
-
-int hextoui(const char *str)
-{
-	unsigned long val;
-	char *ep;
-
-	errno = 0;
-	val = strtoul(str, &ep, 16);
-	if (*ep) {
-		if (!errno)
-			errno = EINVAL;
-		return -1;
-	}
-
-	if (val > UINT_MAX) {
-		errno = ERANGE;
-		return UINT_MAX;
-	}
-
-	return val;
 }
 
 int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock)
@@ -795,19 +763,27 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 			    IN6_IS_ADDR_MC_LINKLOCAL(&firsthop.sin6_addr))
 				firsthop.sin6_scope_id = iface;
 			enable_capability_raw();
-			if (
 #ifdef IPV6_RECVPKTINFO
-				setsockopt(probe_fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof ipi) == -1 &&
-				setsockopt(sock->fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof ipi) == -1 &&
+			if (
+				setsockopt(probe_fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof ipi) == -1 ||
+				setsockopt(sock->fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof ipi) == -1) {
+				perror("setsockopt(IPV6_PKTINFO)");
+				exit(2);
+			}
 #endif
-				setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1 &&
+			if (
+				setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1 ||
 				setsockopt(sock->fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
 				perror("setsockopt(SO_BINDTODEVICE)");
 				exit(2);
 			}
 			disable_capability_raw();
 		}
-		firsthop.sin6_family = AF_INET6;
+
+		if (!IN6_IS_ADDR_LINKLOCAL(&firsthop.sin6_addr) &&
+			!IN6_IS_ADDR_MC_LINKLOCAL(&firsthop.sin6_addr))
+			firsthop.sin6_family = AF_INET6;
+
 		firsthop.sin6_port = htons(1025);
 		if (connect(probe_fd, (struct sockaddr*)&firsthop, sizeof(firsthop)) == -1) {
 			perror("connect");
@@ -902,12 +878,7 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 		exit(2);
 	}
 
-	sock->working_recverr = 1;
 	hold = 1;
-	if (setsockopt(sock->fd, IPPROTO_IPV6, IPV6_RECVERR, &hold, sizeof hold)) {
-		fprintf(stderr, "WARNING: your kernel is veeery old. No problems.\n");
-		sock->working_recverr = 0;
-	}
 
 	/* Estimate memory eaten by single packet. It is rough estimate.
 	 * Actually, for small datalen's it depends on kernel side a lot. */
@@ -935,12 +906,10 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 
 		ICMP6_FILTER_SETBLOCKALL(&filter);
 
-		if (!sock->working_recverr) {
-			ICMP6_FILTER_SETPASS(ICMP6_DST_UNREACH, &filter);
-			ICMP6_FILTER_SETPASS(ICMP6_PACKET_TOO_BIG, &filter);
-			ICMP6_FILTER_SETPASS(ICMP6_TIME_EXCEEDED, &filter);
-			ICMP6_FILTER_SETPASS(ICMP6_PARAM_PROB, &filter);
-		}
+		ICMP6_FILTER_SETPASS(ICMP6_DST_UNREACH, &filter);
+		ICMP6_FILTER_SETPASS(ICMP6_PACKET_TOO_BIG, &filter);
+		ICMP6_FILTER_SETPASS(ICMP6_TIME_EXCEEDED, &filter);
+		ICMP6_FILTER_SETPASS(ICMP6_PARAM_PROB, &filter);
 
 		if (niquery_is_enabled())
 			ICMP6_FILTER_SETPASS(ICMPV6_NI_REPLY, &filter);
@@ -1420,6 +1389,8 @@ ping6_parse_reply(socket_st *sock, struct msghdr *msg, int cc, void *addr, struc
 	if (icmph->icmp6_type == ICMP6_ECHO_REPLY) {
 		if (!is_ours(sock, icmph->icmp6_id))
 			return 1;
+               if (!contains_pattern_in_payload((__u8*)(icmph+1)))
+               		return 1;            /* 'Twas really not our ECHO */
 		if (gather_statistics((__u8*)icmph, sizeof(*icmph), cc,
 				      ntohs(icmph->icmp6_seq),
 				      hops, 0, tv, pr_addr(from, sizeof *from),
@@ -1466,8 +1437,6 @@ ping6_parse_reply(socket_st *sock, struct msghdr *msg, int cc, void *addr, struc
 			    !is_ours(sock, icmph1->icmp6_id))
 				return 1;
 			acknowledge(ntohs(icmph1->icmp6_seq));
-			if (sock->working_recverr)
-				return 0;
 			nerrors++;
 			if (options & F_FLOOD) {
 				write_stdout("\bE", 2);
