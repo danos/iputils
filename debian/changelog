@@ -1,3 +1,9 @@
+iputils (3:20180629-2vyatta2) unstable; urgency=medium
+
+  * DANOS Import master
+
+ -- Vyatta Package Maintainers <DL-vyatta-help@att.com>  Thu, 31 Oct 2019 14:37:14 +0000
+
 iputils (3:20180629-2) unstable; urgency=medium
 
   * Upstream no longer maintains the RELNOTES or README files in a useful
@@ -15,6 +21,12 @@ iputils (3:20180629-1) unstable; urgency=medium
   * Change Priority: extra to Priority: optional per policy 4.0.1
 
  -- Noah Meyerhans <noahm@debian.org>  Fri, 29 Jun 2018 22:03:19 -0700
+
+iputils (3:20161105-1vyatta3) unstable; urgency=medium
+
+  * DANOS Import
+
+ -- Vyatta Package Maintainers <DL-vyatta-help@att.com>  Thu, 31 Oct 2019 14:21:30 +0000
 
 iputils (3:20161105-1) unstable; urgency=medium
 
