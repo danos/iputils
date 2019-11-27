@@ -1,3 +1,11 @@
+iputils (3:20180629-2vyatta3) UNRELEASED; urgency=medium
+
+  * Fix -Z when used in conjunction with -I
+  * Stricter error handling for -Z
+  * Correct -Z loopback/linklocal address checks
+
+ -- Duncan Eastoe <duncan.eastoe@att.com>  Wed, 27 Nov 2019 18:23:57 +0000
+
 iputils (3:20180629-2vyatta2) unstable; urgency=medium
 
   * DANOS Import master
