@@ -44,7 +44,7 @@
  			}
  			break;
  		case 'l':
-@@ -515,6 +522,76 @@
+@@ -515,12 +522,82 @@
  		exit(2);
  	}
  
@@ -110,18 +110,36 @@
 +			}
 +		}
 +		freeifaddrs(ifap);
-+		if (!found && !found6) {
-+			fprintf(stderr, "ping: No suitable addresses found on interface %s.\n", addr_device);
-+			freeaddrinfo(result);
-+			exit(2);
-+		}
-+
 +	}
 +
  	for (ai = result; ai; ai = ai->ai_next) {
  		switch (ai->ai_family) {
  		case AF_INET:
-@@ -598,7 +675,7 @@
++			if (addr_device && source.sin_addr.s_addr == 0)
++				goto no_src_address;
++
+ 			status = ping4_run(argc, argv, ai, &sock4);
+ 			break;
+ 		case AF_INET6:
++			if (addr_device && IN6_IS_ADDR_UNSPECIFIED(&source6.sin6_addr))
++				goto no_src_address;
++
+ 			status = ping6_run(argc, argv, ai, &sock6);
+ 			break;
+ 		default:
+@@ -535,6 +612,11 @@
+ 	freeaddrinfo(result);
+ 
+ 	return status;
++
++no_src_address:
++	fprintf(stderr, "ping: No suitable source address on "
++					"interface %s\n", addr_device);
++	exit(2);
+ }
+ 
+ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
+@@ -598,7 +680,7 @@
  		argv++;
  	}
  
@@ -130,7 +148,7 @@
  		socklen_t alen;
  		struct sockaddr_in dst = whereto;
  		int probe_fd = socket(AF_INET, SOCK_DGRAM, 0);
-@@ -672,36 +749,39 @@
+@@ -672,36 +754,39 @@
  				exit(2);
  			}
  		}
@@ -195,7 +213,7 @@
  		close(probe_fd);
  	} while (0);
  
-@@ -1694,6 +1774,7 @@
+@@ -1694,6 +1779,7 @@
  		USAGE_NEWLINE
  		" [-w deadline]"
  		" [-W timeout]"
