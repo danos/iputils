@@ -1,10 +1,10 @@
-iputils (3:20180629-2vyatta3) UNRELEASED; urgency=medium
+iputils (3:20180629-2vyatta3) unstable; urgency=medium
 
   * Fix -Z when used in conjunction with -I
   * Stricter error handling for -Z
   * Correct -Z loopback/linklocal address checks
 
- -- Duncan Eastoe <duncan.eastoe@att.com>  Wed, 27 Nov 2019 18:23:57 +0000
+ -- Duncan Eastoe <duncan.eastoe@att.com>  Fri, 03 Apr 2020 10:57:05 +0100
 
 iputils (3:20180629-2vyatta2) unstable; urgency=medium
 
