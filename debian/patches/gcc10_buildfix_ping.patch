@@ -1,0 +1,104 @@
+--- a/ping6_common.c
++++ b/ping6_common.c
+@@ -96,7 +96,7 @@
+ void ping6_usage(unsigned) __attribute((noreturn));
+ 
+ struct sockaddr_in6 source6 = { .sin6_family = AF_INET6 };
+-char *device;
++char *device6;
+ 
+ #if defined(USE_GCRYPT) || defined(USE_OPENSSL) || defined(USE_NETTLE)
+ #include "iputils_md5dig.h"
+@@ -742,7 +742,7 @@
+ 
+ 	hostname = target;
+ 
+-	if (IN6_IS_ADDR_UNSPECIFIED(&source6.sin6_addr) || device) {
++	if (IN6_IS_ADDR_UNSPECIFIED(&source6.sin6_addr) || device6) {
+ 		socklen_t alen;
+ 		int probe_fd = socket(AF_INET6, SOCK_DGRAM, 0);
+ 
+@@ -750,8 +750,8 @@
+ 			perror("socket");
+ 			exit(2);
+ 		}
+-		if (device) {
+-			unsigned int iface = if_name2index(device);
++		if (device6) {
++			unsigned int iface = if_name2index(device6);
+ #ifdef IPV6_RECVPKTINFO
+ 			struct in6_pktinfo ipi;
+ 
+@@ -772,8 +772,8 @@
+ 			}
+ #endif
+ 			if (
+-				setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1 ||
+-				setsockopt(sock->fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device)+1) == -1) {
++				setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device6, strlen(device6)+1) == -1 ||
++				setsockopt(sock->fd, SOL_SOCKET, SO_BINDTODEVICE, device6, strlen(device6)+1) == -1) {
+ 				perror("setsockopt(SO_BINDTODEVICE)");
+ 				exit(2);
+ 			}
+@@ -800,7 +800,7 @@
+ 			close(probe_fd);
+ 
+ #ifndef WITHOUT_IFADDRS
+-			if (device) {
++			if (device6) {
+ 				struct ifaddrs *ifa0, *ifa;
+ 
+ 				if (getifaddrs(&ifa0)) {
+@@ -811,24 +811,24 @@
+ 				for (ifa = ifa0; ifa; ifa = ifa->ifa_next) {
+ 					if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET6)
+ 						continue;
+-					if (!strncmp(ifa->ifa_name, device, sizeof(device) - 1) &&
++					if (!strncmp(ifa->ifa_name, device6, sizeof(device6) - 1) &&
+ 						IN6_ARE_ADDR_EQUAL(&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr,
+ 								   &source6.sin6_addr))
+ 						break;
+ 				}
+ 				if (!ifa)
+-					fprintf(stderr, "ping6: Warning: source address might be selected on device other than %s.\n", device);
++					fprintf(stderr, "ping6: Warning: source address might be selected on device other than %s.\n", device6);
+ 
+ 				freeifaddrs(ifa0);
+ 			}
+ #endif
+ 		}
+ 	}
+-	else if (device && (IN6_IS_ADDR_LINKLOCAL(&source6.sin6_addr) ||
++	else if (device6 && (IN6_IS_ADDR_LINKLOCAL(&source6.sin6_addr) ||
+ 			    IN6_IS_ADDR_MC_LINKLOCAL(&source6.sin6_addr)))
+-		source6.sin6_scope_id = if_name2index(device);
++		source6.sin6_scope_id = if_name2index(device6);
+ 
+-	if (device) {
++	if (device6) {
+ 		struct cmsghdr *cmsg;
+ 		struct in6_pktinfo *ipi;
+ 
+@@ -840,7 +840,7 @@
+ 
+ 		ipi = (struct in6_pktinfo*)CMSG_DATA(cmsg);
+ 		memset(ipi, 0, sizeof(*ipi));
+-		ipi->ipi6_ifindex = if_name2index(device);
++		ipi->ipi6_ifindex = if_name2index(device6);
+ 	}
+ 
+ 	if ((whereto.sin6_addr.s6_addr16[0]&htons(0xff00)) == htons (0xff00)) {
+@@ -1019,11 +1019,11 @@
+ 	printf("PING %s(%s) ", hostname, pr_addr(&whereto, sizeof whereto));
+ 	if (flowlabel)
+ 		printf(", flow 0x%05x, ", (unsigned)ntohl(flowlabel));
+-	if (device || (options&F_STRICTSOURCE)) {
++	if (device6 || (options&F_STRICTSOURCE)) {
+ 		int saved_options = options;
+ 
+ 		options |= F_NUMERIC;
+-		printf("from %s %s: ", pr_addr(&source6, sizeof source6), device ? : "");
++		printf("from %s %s: ", pr_addr(&source6, sizeof source6), device6 ? : "");
+ 		options = saved_options;
+ 	}
+ 	printf("%d data bytes\n", datalen);

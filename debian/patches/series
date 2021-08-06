@@ -1,2 +1,3 @@
 set_buildflags
 vyatta/ping-interface-address.patch
+gcc10_buildfix_ping.patch
