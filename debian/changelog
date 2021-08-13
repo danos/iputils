@@ -1,3 +1,9 @@
+iputils (3:20180629-2vyatta4) unstable; urgency=medium
+
+  * ping6: fix build with GCC10
+
+ -- Daniel Gollub <dgollub@att.com>  Fri, 13 Aug 2021 15:36:07 +0200
+
 iputils (3:20180629-2vyatta3) unstable; urgency=medium
 
   * Fix -Z when used in conjunction with -I
